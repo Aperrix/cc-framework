@@ -2,11 +2,13 @@
 
 ## Overview
 
-cc-framework is a deterministic workflow engine for AI-assisted software development. It orchestrates Claude Code sessions through YAML-defined DAGs (Directed Acyclic Graphs), providing structure, repeatability, and auditability to AI coding workflows.
+cc-framework is a deterministic workflow engine for AI-assisted software development. It orchestrates AI agents through YAML-defined DAGs (Directed Acyclic Graphs), providing structure, repeatability, and auditability to AI coding workflows.
 
 **Core principle:** Workflows are 100% manually authored in YAML. The AI fills intelligence within deterministic steps — it does not control the structure.
 
-**Runtime:** Claude Code is the sole AI runtime. No direct API calls, no multi-provider support. The framework orchestrates, Claude Code executes.
+**Runtime:** The Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) is the AI runtime. Each AI node spawns an autonomous agent via the SDK, with full access to file editing, shell commands, and codebase analysis. No multi-provider support — the framework is built exclusively on Claude.
+
+**ToS compliance:** cc-framework does not proxy or manage authentication. Users must provide their own Anthropic API key or be authenticated via Claude Code (`claude login`). The SDK handles authentication directly — cc-framework passes prompts and configuration, never credentials.
 
 ## Architecture
 
@@ -21,7 +23,7 @@ The project is a monorepo with modular packages, compiled into a single standalo
 | `packages/core`      | Library     | Workflow parser, DAG executor, node runners, SQLite store, event bus. No UI. |
 | `packages/cli`       | Application | Terminal interface. Imports core. Entry point for the standalone binary.     |
 | `packages/mcp`       | Application | MCP server for Claude Code integration. Exposes workflows as tools.          |
-| `packages/workflows` | Data        | Default YAML workflows and markdown commands shipped with the framework.     |
+| `packages/workflows` | Data        | Default YAML workflows and markdown prompt files shipped with the framework. |
 | `apps/web`           | Application | React dashboard. DAG visualization, real-time logs, approval UI.             |
 
 ### Dependency Flow
@@ -40,20 +42,21 @@ All three surfaces (CLI, Web, MCP) consume core's programmatic API. Core has no 
 
 ### Modules
 
-| Module       | Responsibility                                                                                                                                                             |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parser/`    | Loads and validates YAML workflow files. Resolves `command:` references from `.cc-framework/commands/`. Produces typed `WorkflowDefinition` objects.                       |
-| `dag/`       | Builds the dependency graph from `WorkflowDefinition`. Topological sort, cycle detection, parallel layer computation.                                                      |
-| `executor/`  | Traverses the DAG layer by layer. Evaluates `when:` conditions, runs nodes in parallel within a layer, handles retries, checkpoint/resume.                                 |
-| `runners/`   | One runner per node type: `ai` (spawns Claude Code), `shell` (executes bash), `loop` (iterates AI runner), `approval` (pauses for human input), `cancel` (stops workflow). |
-| `store/`     | SQLite persistence layer via better-sqlite3. Synchronous API.                                                                                                              |
-| `isolation/` | Git worktree and branch management. Setup and cleanup per workflow run.                                                                                                    |
-| `variables/` | Resolves substitutions in prompts and commands: `$nodeId.output`, `$ARGUMENTS`, `$ARTIFACTS_DIR`, JSON dot notation.                                                       |
-| `events/`    | EventEmitter bus for consumers. Emits: `node:start`, `node:complete`, `node:error`, `run:progress`, `run:done`.                                                            |
+| Module       | Responsibility                                                                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parser/`    | Loads and validates YAML workflow files via Zod schemas. Resolves `prompt:` file references from `.cc-framework/prompts/` or project root. Produces typed `WorkflowDefinition` objects.                       |
+| `schema/`    | Zod schemas defining the workflow YAML format. Source of truth for validation, TypeScript types, and JSON Schema generation (via `zod-to-json-schema`) for IDE autocompletion.                                |
+| `dag/`       | Builds the dependency graph from `WorkflowDefinition`. Topological sort, cycle detection, parallel layer computation.                                                                                         |
+| `executor/`  | Traverses the DAG layer by layer. Evaluates `when:` conditions, runs nodes in parallel within a layer, handles retries, checkpoint/resume.                                                                    |
+| `runners/`   | One runner per node type: `ai` (calls `query()` from `@anthropic-ai/claude-agent-sdk`), `shell` (executes bash), `loop` (iterates AI runner), `approval` (pauses for human input), `cancel` (stops workflow). |
+| `store/`     | SQLite persistence layer via better-sqlite3. Synchronous API.                                                                                                                                                 |
+| `isolation/` | Git worktree and branch management. Setup and cleanup per workflow run.                                                                                                                                       |
+| `variables/` | Resolves substitutions in prompt strings: `$nodeId.output`, `$ARGUMENTS`, `$ARTIFACTS_DIR`, JSON dot notation.                                                                                                |
+| `events/`    | EventEmitter bus for consumers. Emits: `node:start`, `node:complete`, `node:error`, `run:progress`, `run:done`.                                                                                               |
 
 ### Execution Flow
 
-1. **Parse** — YAML file loaded, validated, `command:` references resolved
+1. **Parse** — YAML file loaded, validated, `prompt:` file references resolved
 2. **Build DAG** — Nodes and dependencies assembled into a graph, topological layers computed
 3. **Setup isolation** — Worktree or branch created based on workflow config
 4. **Execute layers** — For each layer, evaluate `when:` conditions, run eligible nodes in parallel
@@ -63,7 +66,41 @@ All three surfaces (CLI, Web, MCP) consume core's programmatic API. Core has no 
 
 ## Workflow YAML Specification
 
-The workflow spec is based on Archon's workflow format, adapted for the Claude Code runtime.
+The workflow spec is based on Archon's workflow format, adapted for the Claude Agent SDK runtime.
+
+### AI Runtime — Claude Agent SDK
+
+The AI runner uses `@anthropic-ai/claude-agent-sdk` to execute AI nodes. The SDK exposes a `query()` function that runs an autonomous agent with built-in tools (Read, Write, Edit, Bash, Glob, Grep, WebSearch, etc.):
+
+```typescript
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+// Each AI node calls query() with the resolved prompt
+for await (const message of query({
+  prompt: resolvedPrompt,
+  options: {
+    allowedTools: nodeConfig.allowed_tools ?? ["Read", "Edit", "Bash", "Glob", "Grep"],
+    systemPrompt: nodeConfig.systemPrompt,
+    cwd: workingDirectory,
+  },
+})) {
+  if ("result" in message) {
+    // Capture the node output for $nodeId.output
+    nodeOutput = message.result;
+  }
+}
+```
+
+**Key behaviors:**
+
+- `context: fresh` — each AI node runs an independent `query()` call with no prior context
+- `context: shared` — nodes in a chain reuse the same session via the `resume: sessionId` option, preserving conversation history across nodes
+- Tool restrictions (`allowed_tools`, `denied_tools`) map directly to the SDK's `allowedTools` option
+- `output_format` enables structured JSON outputs for conditional routing (`when:` conditions)
+- Subagents — the SDK supports spawning subagents via the `Agent` tool and the `agents` option for defining specialized agent roles
+- Hooks — the SDK's `hooks` option (PreToolUse, PostToolUse, Stop, etc.) is exposed via the workflow YAML `hooks:` field
+- MCP servers — the SDK's `mcpServers` option is exposed via the workflow YAML `mcp:` field
+- The SDK handles file access, shell execution, web search, and codebase analysis natively — the framework doesn't reimplement these
 
 ### Top-Level Properties
 
@@ -101,14 +138,13 @@ nodes:
 
 Each node accepts exactly one of these types (mutually exclusive):
 
-| Type       | Syntax                         | Description                           |
-| ---------- | ------------------------------ | ------------------------------------- |
-| `command`  | `command: command-name`        | Loads from `.cc-framework/commands/`  |
-| `prompt`   | `prompt: "instruction"`        | Inline prompt                         |
-| `bash`     | `bash: "shell script"`         | Deterministic shell execution (no AI) |
-| `loop`     | `loop: { prompt, until, ... }` | Iterates until signal                 |
-| `approval` | `approval: { message }`        | Pauses for human review               |
-| `cancel`   | `cancel: "reason"`             | Stops the workflow                    |
+| Type       | Syntax                                               | Description                                                                                                                                                                                                                                                                  |
+| ---------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`   | `prompt: "instruction"` or `prompt: path/to/file.md` | AI node — inline string or path to a markdown file. If the value ends with `.md` or starts with `./` / `/`, it is loaded as a file; otherwise treated as inline text. File paths are resolved relative to `.cc-framework/prompts/` first, then relative to the project root. |
+| `bash`     | `bash: "shell script"`                               | Deterministic shell execution (no AI)                                                                                                                                                                                                                                        |
+| `loop`     | `loop: { prompt, until, ... }`                       | Iterates until signal (the inner `prompt` follows the same string-or-path rules)                                                                                                                                                                                             |
+| `approval` | `approval: { message }`                              | Pauses for human review                                                                                                                                                                                                                                                      |
+| `cancel`   | `cancel: "reason"`                                   | Stops the workflow                                                                                                                                                                                                                                                           |
 
 ### Common Node Properties
 
@@ -159,7 +195,7 @@ Invalid expressions default to `false` (node skipped).
 ```yaml
 nodes:
   - id: ai-node
-    command: my-command
+    prompt: investigate-issue.md
     model: opus # Per-node model override
     output_format: # Structured output
       type: object
@@ -240,27 +276,27 @@ Nodes are grouped into topological layers. Within a layer, all nodes execute in 
 ```yaml
 nodes:
   - id: scope
-    command: create-review-scope
+    prompt: create-review-scope.md
 
   # These 3 nodes share depends_on: [scope] → parallel execution
   - id: code-review
-    command: code-review-agent
+    prompt: code-review-agent.md
     depends_on: [scope]
     context: fresh
 
   - id: test-review
-    command: test-coverage-agent
+    prompt: test-coverage-agent.md
     depends_on: [scope]
     context: fresh
 
   - id: security-review
-    command: security-review-agent
+    prompt: security-review-agent.md
     depends_on: [scope]
     context: fresh
 
   # Waits for all 3 reviews
   - id: synthesize
-    command: synthesize-reviews
+    prompt: synthesize-reviews.md
     depends_on: [code-review, test-review, security-review]
     trigger_rule: none_failed_min_one_success
 ```
@@ -359,7 +395,7 @@ my-project/
 │   ├── config.yaml              # Project configuration
 │   ├── workflows/               # Custom workflows
 │   │   └── my-workflow.yaml
-│   └── commands/                # Reusable markdown commands
+│   └── prompts/                 # Reusable markdown prompt files
 │       └── investigate-issue.md
 └── ...
 ```
@@ -373,6 +409,26 @@ my-project/
 ```
 
 Default workflows (shipped with the binary) are available without being copied into the project. Users can override them by creating a file with the same name in `.cc-framework/workflows/`.
+
+## IDE Autocompletion (JSON Schema)
+
+Zod schemas in `packages/core/schema/` are the single source of truth for:
+
+- **Runtime validation** — YAML parsed via `yaml` library, validated with Zod
+- **TypeScript types** — inferred from Zod schemas via `z.infer<>`
+- **JSON Schema** — generated via `zod-to-json-schema` at build time, output as `workflow.schema.json`
+
+The JSON Schema is distributed with the binary and published at a stable URL. Users activate autocompletion in their workflow YAML files via:
+
+```yaml
+# yaml-language-server: $schema=https://cc-framework.dev/schemas/workflow.json
+name: my-workflow
+# ← IDE now provides autocompletion, validation, and hover docs
+```
+
+Alternatively, users can configure their IDE globally (e.g., VS Code `settings.json` with the YAML extension, or JetBrains built-in YAML support) to associate `**/.cc-framework/workflows/*.yaml` with the schema.
+
+`ccf init` generates a `.vscode/settings.yaml` with the schema mapping pre-configured.
 
 ## CLI Commands
 
@@ -426,4 +482,6 @@ MCP server exposing cc-framework to Claude Code:
 
 ## Distribution
 
-Single standalone binary compiled with `bun build --compile`. Embeds CLI + Core + Web UI + MCP Server + default workflows. One file, zero dependencies.
+Single standalone binary compiled with `bun build --compile`. Embeds CLI + Core + Web UI + MCP Server + default workflows. One file.
+
+**Runtime dependency:** `@anthropic-ai/claude-agent-sdk` — required for AI node execution. The user must have an Anthropic API key configured (`ANTHROPIC_API_KEY` env var) or be authenticated via Claude Code (`claude login`). cc-framework does not manage or proxy authentication.
