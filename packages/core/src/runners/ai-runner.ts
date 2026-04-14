@@ -6,6 +6,20 @@ export interface AiResult {
   sessionId?: string;
 }
 
+// SDK message shapes (minimal typing for the fields we use)
+interface SdkInitMessage {
+  type: "system";
+  subtype: "init";
+  session_id: string;
+}
+
+interface SdkResultMessage {
+  type: "result";
+  result: string;
+}
+
+type SdkMessage = SdkInitMessage | SdkResultMessage | { type: string; [key: string]: unknown };
+
 export async function runAi(
   prompt: string,
   node: Node,
@@ -26,17 +40,16 @@ export async function runAi(
     cwd,
     resume: resumeSessionId,
   };
-  // denied_tools mapped to SDK option if supported
   if (node.denied_tools) {
     options.deniedTools = node.denied_tools;
   }
 
-  for await (const message of query({ prompt, options })) {
-    if ("type" in message && message.type === "system" && (message as any).subtype === "init") {
-      sessionId = (message as any).session_id;
+  for await (const message of query({ prompt, options }) as AsyncIterable<SdkMessage>) {
+    if (message.type === "system" && "subtype" in message && message.subtype === "init") {
+      sessionId = (message as SdkInitMessage).session_id;
     }
-    if ("result" in message) {
-      output = (message as any).result;
+    if ("result" in message && typeof message.result === "string") {
+      output = message.result;
     }
   }
 

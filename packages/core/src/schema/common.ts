@@ -72,5 +72,5 @@ export type Sandbox = z.infer<typeof SandboxSchema>;
 
 // Type guard for trigger rules
 export function isTriggerRule(value: unknown): value is TriggerRule {
-  return typeof value === "string" && (TRIGGER_RULES as readonly string[]).includes(value);
+  return typeof value === "string" && TRIGGER_RULES.includes(value as TriggerRule);
 }

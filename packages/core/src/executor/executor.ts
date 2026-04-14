@@ -19,9 +19,11 @@ import {
   isCancelNode,
 } from "../schema/node.ts";
 
+export type RunStatus = "completed" | "failed" | "cancelled" | "paused";
+
 export interface RunResult {
   runId: string;
-  status: "completed" | "failed" | "cancelled" | "paused";
+  status: RunStatus;
 }
 
 /**
@@ -123,7 +125,7 @@ export class WorkflowExecutor {
     const builtins: Record<string, string> = { ARTIFACTS_DIR: artifactsDir };
     if (args) builtins.ARGUMENTS = args;
 
-    let finalStatus: RunResult["status"] = "completed";
+    let finalStatus: RunStatus = "completed";
 
     try {
       // 3. Execute layer by layer
@@ -160,7 +162,7 @@ export class WorkflowExecutor {
         // Check run status between layers (supports external cancellation/pause)
         const currentStatus = this.store.getRunStatus(runId);
         if (currentStatus === "cancelled" || currentStatus === "paused") {
-          finalStatus = currentStatus as any;
+          finalStatus = currentStatus;
           break;
         }
       }
@@ -175,11 +177,9 @@ export class WorkflowExecutor {
     // 4. Finalize
     this.store.updateRunStatus(runId, finalStatus);
     const durationMs = Date.now() - startTime;
-    this.eventBus.emit("run:done", {
-      runId,
-      status: finalStatus as "completed" | "failed" | "cancelled",
-      durationMs,
-    });
+    if (finalStatus !== "paused") {
+      this.eventBus.emit("run:done", { runId, status: finalStatus, durationMs });
+    }
 
     return { runId, status: finalStatus };
   }
@@ -221,7 +221,7 @@ export class WorkflowExecutor {
         const result = await runScript(
           command,
           cwd,
-          (node.runtime as "bash" | "bun" | "uv") ?? "bash",
+          node.runtime ?? "bash",
           node.deps,
           node.timeout,
         );
@@ -253,7 +253,7 @@ export class WorkflowExecutor {
       nodeOutputs[nodeId] = { output };
     } catch (error) {
       if (error instanceof WorkflowPausedError) {
-        this.store.pauseRun(runId, error.approvalContext as unknown as Record<string, unknown>);
+        this.store.pauseRun(runId, error.approvalContext);
         // Don't mark the node as failed — it's paused
         throw error;
       }

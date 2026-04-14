@@ -56,6 +56,8 @@ export { substituteVariables } from "./variables/substitute.ts";
 export {
   createDatabase,
   type Database,
+  type RunStatus,
+  type NodeExecutionStatus,
   workflows,
   runs,
   nodeExecutions,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, and, desc } from "drizzle-orm";
-import type { Database } from "./database.ts";
+import type { Database, RunStatus, NodeExecutionStatus } from "./database.ts";
+import type { ApprovalContext } from "../runners/approval-runner.ts";
 import { workflows, runs, nodeExecutions, outputs, events } from "./database.ts";
 
 export class StoreQueries {
@@ -54,15 +55,11 @@ export class StoreQueries {
     return this.db.select().from(runs).where(eq(runs.id, id)).get() ?? null;
   }
 
-  updateRunStatus(id: string, status: string): void {
+  updateRunStatus(id: string, status: RunStatus): void {
     const finishedAt = ["completed", "failed", "cancelled"].includes(status)
       ? Date.now()
       : undefined;
-    this.db
-      .update(runs)
-      .set({ status: status as any, finishedAt })
-      .where(eq(runs.id, id))
-      .run();
+    this.db.update(runs).set({ status, finishedAt }).where(eq(runs.id, id)).run();
   }
 
   createNodeExecution(runId: string, nodeId: string, attempt: number): string {
@@ -85,11 +82,11 @@ export class StoreQueries {
     return this.db.select().from(nodeExecutions).where(eq(nodeExecutions.id, id)).get() ?? null;
   }
 
-  updateNodeExecutionStatus(id: string, status: string, durationMs?: number): void {
+  updateNodeExecutionStatus(id: string, status: NodeExecutionStatus, durationMs?: number): void {
     const finishedAt = ["completed", "failed", "skipped"].includes(status) ? Date.now() : undefined;
     this.db
       .update(nodeExecutions)
-      .set({ status: status as any, finishedAt, durationMs })
+      .set({ status, finishedAt, durationMs })
       .where(eq(nodeExecutions.id, id))
       .run();
   }
@@ -128,10 +125,10 @@ export class StoreQueries {
       .all();
   }
 
-  pauseRun(id: string, approvalContext: Record<string, unknown>): void {
+  pauseRun(id: string, approvalContext: ApprovalContext): void {
     this.db
       .update(runs)
-      .set({ status: "paused" as any })
+      .set({ status: "paused" satisfies RunStatus })
       .where(eq(runs.id, id))
       .run();
 
@@ -157,14 +154,14 @@ export class StoreQueries {
   resumeRun(id: string): void {
     this.db
       .update(runs)
-      .set({ status: "running" as any })
+      .set({ status: "running" satisfies RunStatus })
       .where(eq(runs.id, id))
       .run();
   }
 
-  getRunStatus(id: string): string | null {
+  getRunStatus(id: string): RunStatus | null {
     const run = this.db.select({ status: runs.status }).from(runs).where(eq(runs.id, id)).get();
-    return run?.status ?? null;
+    return (run?.status as RunStatus) ?? null;
   }
 
   getNodeOutputs(runId: string): Record<string, { output: string }> {

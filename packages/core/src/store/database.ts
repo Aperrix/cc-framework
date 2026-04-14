@@ -101,6 +101,11 @@ export const isolationEnvironments = sqliteTable("isolation_environments", {
   cleanedAt: integer("cleaned_at", { mode: "number" }),
 });
 
+// --- Status types (derived from enum definitions) ---
+
+export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
+export type NodeExecutionStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+
 // --- Database types ---
 
 export type Database = ReturnType<typeof createDatabase>;
