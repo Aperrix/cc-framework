@@ -27,6 +27,7 @@ export async function runScript(
   runtime: ScriptRuntime = "bash",
   deps?: string[],
   timeout?: number,
+  env?: Record<string, string>,
 ): Promise<ScriptResult> {
   const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT;
   const isFile = isScriptFilePath(script);
@@ -57,7 +58,7 @@ export async function runScript(
     const result = await execFileAsync(cmd, args, {
       cwd,
       timeout: effectiveTimeout,
-      env: { ...process.env },
+      env: { ...process.env, ...env },
     });
     const output = result.stdout + result.stderr;
     return { output, exitCode: 0 };

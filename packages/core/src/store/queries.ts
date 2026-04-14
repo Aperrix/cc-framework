@@ -234,6 +234,80 @@ export class StoreQueries {
       .run();
   }
 
+  // ---- Lifecycle Operations ----
+
+  /** Find a resumable run for a workflow (failed or paused). */
+  findResumableRun(workflowName: string): { id: string; status: string } | null {
+    const wf = this.db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(eq(workflows.name, workflowName))
+      .get();
+    if (!wf) return null;
+
+    // Check paused first (higher priority for resume)
+    const paused = this.db
+      .select({ id: runs.id, status: runs.status })
+      .from(runs)
+      .where(and(eq(runs.workflowId, wf.id), eq(runs.status, "paused")))
+      .orderBy(desc(runs.startedAt))
+      .get();
+    if (paused) return { id: paused.id, status: paused.status };
+
+    const failed = this.db
+      .select({ id: runs.id, status: runs.status })
+      .from(runs)
+      .where(and(eq(runs.workflowId, wf.id), eq(runs.status, "failed")))
+      .orderBy(desc(runs.startedAt))
+      .get();
+    if (failed) return { id: failed.id, status: failed.status };
+
+    return null;
+  }
+
+  /** Mark all "running" runs as "failed" -- called on startup to recover from crashes. */
+  failOrphanedRuns(): number {
+    const orphaned = this.db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(eq(runs.status, "running"))
+      .all();
+
+    for (const run of orphaned) {
+      this.db
+        .update(runs)
+        .set({ status: "failed" satisfies RunStatus, finishedAt: Date.now() })
+        .where(eq(runs.id, run.id))
+        .run();
+      this.recordEvent(
+        run.id,
+        null,
+        "run:orphaned",
+        "Marked as failed on startup (crash recovery)",
+      );
+    }
+
+    return orphaned.length;
+  }
+
+  // ---- Activity Heartbeat ----
+
+  /** Update the last activity timestamp for a run (throttled by caller). */
+  updateRunActivity(runId: string): void {
+    this.recordEvent(runId, null, "run:heartbeat");
+  }
+
+  /** Get the timestamp of the last activity for a run. */
+  getLastActivity(runId: string): number | null {
+    const event = this.db
+      .select({ timestamp: events.timestamp })
+      .from(events)
+      .where(eq(events.runId, runId))
+      .orderBy(desc(events.timestamp))
+      .get();
+    return event?.timestamp ?? null;
+  }
+
   // ---- Metrics Operations ----
 
   /** Aggregated statistics for a workflow — success rate, avg duration, failure hotspots. */

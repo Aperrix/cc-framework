@@ -84,6 +84,110 @@ describe("StoreQueries", () => {
     expect(outputs.plan.output).toBe("The plan is ready");
   });
 
+  // ---- Lifecycle ----
+
+  it("finds a resumable paused run", () => {
+    const wfId = store.upsertWorkflow("resume-wf", "custom", "hash");
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+    store.updateRunStatus(run1, "paused");
+
+    const resumable = store.findResumableRun("resume-wf");
+    expect(resumable).not.toBeNull();
+    expect(resumable!.id).toBe(run1);
+    expect(resumable!.status).toBe("paused");
+  });
+
+  it("finds a resumable failed run", () => {
+    const wfId = store.upsertWorkflow("resume-wf2", "custom", "hash");
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+    store.updateRunStatus(run1, "failed");
+
+    const resumable = store.findResumableRun("resume-wf2");
+    expect(resumable).not.toBeNull();
+    expect(resumable!.status).toBe("failed");
+  });
+
+  it("prefers paused over failed for resume", () => {
+    const wfId = store.upsertWorkflow("resume-wf3", "custom", "hash");
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+    store.updateRunStatus(run1, "failed");
+
+    const run2 = store.createRun(wfId);
+    store.updateRunStatus(run2, "running");
+    store.updateRunStatus(run2, "paused");
+
+    const resumable = store.findResumableRun("resume-wf3");
+    expect(resumable).not.toBeNull();
+    expect(resumable!.status).toBe("paused");
+  });
+
+  it("returns null when no resumable run exists", () => {
+    const wfId = store.upsertWorkflow("complete-wf", "custom", "hash");
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+    store.updateRunStatus(run1, "completed");
+
+    expect(store.findResumableRun("complete-wf")).toBeNull();
+  });
+
+  it("returns null for unknown workflow", () => {
+    expect(store.findResumableRun("nonexistent")).toBeNull();
+  });
+
+  it("marks orphaned running runs as failed", () => {
+    const wfId = store.upsertWorkflow("orphan-wf", "custom", "hash");
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+    const run2 = store.createRun(wfId);
+    store.updateRunStatus(run2, "running");
+    const run3 = store.createRun(wfId);
+    store.updateRunStatus(run3, "completed");
+
+    const count = store.failOrphanedRuns();
+    expect(count).toBe(2);
+
+    expect(store.getRun(run1)!.status).toBe("failed");
+    expect(store.getRun(run2)!.status).toBe("failed");
+    expect(store.getRun(run3)!.status).toBe("completed");
+  });
+
+  it("records orphaned event for each failed run", () => {
+    const wfId = store.upsertWorkflow("orphan-ev-wf", "custom", "hash");
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+
+    store.failOrphanedRuns();
+
+    const evts = store.getEvents(run1);
+    const orphanEvents = evts.filter((e) => e.type === "run:orphaned");
+    expect(orphanEvents).toHaveLength(1);
+    expect(orphanEvents[0].payload).toContain("crash recovery");
+  });
+
+  // ---- Activity Heartbeat ----
+
+  it("records and retrieves heartbeat activity", () => {
+    const wfId = store.upsertWorkflow("heartbeat-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+
+    store.updateRunActivity(runId);
+    const lastActivity = store.getLastActivity(runId);
+    expect(lastActivity).not.toBeNull();
+    expect(typeof lastActivity).toBe("number");
+  });
+
+  it("returns null for run with no events", () => {
+    // Create a run but don't add any events
+    const wfId = store.upsertWorkflow("no-events-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    // getLastActivity queries events table, which should be empty for this run
+    const lastActivity = store.getLastActivity(runId);
+    expect(lastActivity).toBeNull();
+  });
+
   // ---- Metrics ----
 
   it("returns workflow stats with success rate", () => {

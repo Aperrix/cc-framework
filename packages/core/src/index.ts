@@ -97,6 +97,24 @@ export {
   type DispatchResult,
   type DispatchContext,
 } from "./executor/node-dispatcher.ts";
+export { resolveModel, type ResolvedModel } from "./executor/resolve-model.ts";
+
+// ---- Logging ----
+export {
+  log,
+  setLogHandler,
+  resetLogHandler,
+  logWorkflowStart,
+  logWorkflowComplete,
+  logWorkflowError,
+  logNodeStart,
+  logNodeComplete,
+  logNodeSkip,
+  logNodeError,
+  type LogLevel,
+  type LogEntry,
+  type LogHandler,
+} from "./logger.ts";
 
 // ---- Events ----
 export {

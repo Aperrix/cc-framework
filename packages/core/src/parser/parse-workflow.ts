@@ -32,8 +32,33 @@ export async function parseWorkflow(
     }
   }
 
+  validateDagStructure(workflow);
   validateOutputReferences(workflow);
   return workflow;
+}
+
+/**
+ * Validate structural DAG integrity: unique node IDs and valid dependency references.
+ */
+function validateDagStructure(workflow: Workflow): void {
+  const nodeIds = new Set<string>();
+
+  // Check unique IDs
+  for (const node of workflow.nodes) {
+    if (nodeIds.has(node.id)) {
+      throw new Error(`Duplicate node ID: "${node.id}"`);
+    }
+    nodeIds.add(node.id);
+  }
+
+  // Check dependency references
+  for (const node of workflow.nodes) {
+    for (const dep of node.depends_on) {
+      if (!nodeIds.has(dep)) {
+        throw new Error(`Node "${node.id}" depends on "${dep}" which does not exist`);
+      }
+    }
+  }
 }
 
 /**

@@ -7,10 +7,12 @@ import { runCodeMode } from "../runners/code-mode-runner.ts";
 import { runLoop } from "../runners/loop-runner.ts";
 import { requestApproval } from "../runners/approval-runner.ts";
 import { runCancel } from "../runners/cancel-runner.ts";
+import { resolveModel } from "./resolve-model.ts";
 
 import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
+import type { ResolvedConfig } from "../config/types.ts";
 import {
   isPromptNode,
   isScriptNode,
@@ -32,6 +34,7 @@ export interface DispatchResult {
 
 export interface DispatchContext {
   workflow: Workflow;
+  config: ResolvedConfig;
   runId: string;
   nodeId: string;
   cwd: string;
@@ -58,6 +61,7 @@ export async function dispatchNode(node: Node, ctx: DispatchContext): Promise<Di
       node.runtime ?? "bash",
       node.deps,
       node.timeout,
+      ctx.builtins,
     );
     if (result.exitCode !== 0) {
       throw new Error(`Script failed with exit code ${result.exitCode}: ${result.output}`);

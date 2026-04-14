@@ -16,11 +16,23 @@ import {
   type IsolationEnvironment,
 } from "../isolation/isolation.ts";
 
+import {
+  logWorkflowStart,
+  logWorkflowComplete,
+  logWorkflowError,
+  logNodeStart,
+  logNodeComplete,
+  logNodeSkip,
+  logNodeError,
+} from "../logger.ts";
+
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import type { RunStatus } from "../constants.ts";
 import type { Node } from "../schema/node.ts";
+import type { ResolvedConfig } from "../config/types.ts";
+import { CONFIG_DEFAULTS } from "../config/types.ts";
 
 export interface RunResult {
   runId: string;
@@ -36,7 +48,12 @@ export class WorkflowExecutor {
     private eventBus: WorkflowEventBus,
   ) {}
 
-  async run(workflow: Workflow, cwd: string, args?: string): Promise<RunResult> {
+  async run(
+    workflow: Workflow,
+    cwd: string,
+    args?: string,
+    config?: ResolvedConfig,
+  ): Promise<RunResult> {
     // Phase 1: Persist workflow and create run record
     const yamlHash = createHash("sha256").update(JSON.stringify(workflow)).digest("hex");
     const workflowId = this.store.upsertWorkflow(workflow.name, "embedded", yamlHash);
@@ -50,6 +67,7 @@ export class WorkflowExecutor {
       args,
       {}, // No prior node outputs
       new Set(), // No completed nodes
+      config ?? CONFIG_DEFAULTS,
     );
   }
 
@@ -57,7 +75,13 @@ export class WorkflowExecutor {
    * Resume a paused or failed run from the last checkpoint.
    * Completed nodes are skipped — execution continues from the first incomplete layer.
    */
-  async resume(workflow: Workflow, runId: string, cwd: string, args?: string): Promise<RunResult> {
+  async resume(
+    workflow: Workflow,
+    runId: string,
+    cwd: string,
+    args?: string,
+    config?: ResolvedConfig,
+  ): Promise<RunResult> {
     // Load already-completed node outputs
     const completedNodeIds = this.store.getCompletedNodeIds(runId);
     const nodeOutputs = this.store.getNodeOutputs(runId);
@@ -65,7 +89,15 @@ export class WorkflowExecutor {
     this.store.updateRunStatus(runId, "running");
 
     // Re-run with prior state
-    return this.executeFromLayers(workflow, runId, cwd, args, nodeOutputs, completedNodeIds);
+    return this.executeFromLayers(
+      workflow,
+      runId,
+      cwd,
+      args,
+      nodeOutputs,
+      completedNodeIds,
+      config ?? CONFIG_DEFAULTS,
+    );
   }
 
   /**
@@ -80,8 +112,14 @@ export class WorkflowExecutor {
     args: string | undefined,
     nodeOutputs: Record<string, { output: string }>,
     completedNodeIds: Set<string>,
+    config: ResolvedConfig,
   ): Promise<RunResult> {
     const startTime = Date.now();
+    logWorkflowStart(runId, workflow.name);
+
+    // Activity heartbeat tracking
+    let lastHeartbeat = Date.now();
+    const HEARTBEAT_INTERVAL = 60_000; // 60 seconds
     const layers = buildDag(workflow.nodes);
     const nodeMap = new Map<string, Node>();
     for (const node of workflow.nodes) {
@@ -142,6 +180,7 @@ export class WorkflowExecutor {
             nodeOutputs,
             nodeStatuses,
             builtins,
+            config,
             // Session threading: pass lastSessionId for sequential layers
             isParallelLayer ? undefined : lastSessionId,
           ),
@@ -175,6 +214,12 @@ export class WorkflowExecutor {
           }
         }
 
+        // Activity heartbeat (throttled)
+        if (Date.now() - lastHeartbeat > HEARTBEAT_INTERVAL) {
+          this.store.updateRunActivity(runId);
+          lastHeartbeat = Date.now();
+        }
+
         // Check run status between layers (supports external cancellation/pause)
         const currentStatus = this.store.getRunStatus(runId);
         if (currentStatus === "cancelled" || currentStatus === "paused") {
@@ -202,6 +247,13 @@ export class WorkflowExecutor {
       this.eventBus.emit("run:done", { runId, status: finalStatus, durationMs });
     }
 
+    // Structured logging
+    if (finalStatus === "completed") {
+      logWorkflowComplete(runId, durationMs);
+    } else if (finalStatus === "failed") {
+      logWorkflowError(runId, "Workflow execution failed");
+    }
+
     return { runId, status: finalStatus };
   }
 
@@ -214,6 +266,7 @@ export class WorkflowExecutor {
     nodeOutputs: Record<string, { output: string }>,
     nodeStatuses: Record<string, { completed: boolean; failed: boolean; skipped: boolean }>,
     builtins: Record<string, string>,
+    config: ResolvedConfig,
     resumeSessionId?: string,
   ): Promise<void> {
     // Check trigger rule against dependency statuses
@@ -229,6 +282,7 @@ export class WorkflowExecutor {
           nodeId,
           reason: `trigger_rule "${node.trigger_rule}" not satisfied`,
         });
+        logNodeSkip(runId, nodeId, `trigger_rule "${node.trigger_rule}" not satisfied`);
         nodeStatuses[nodeId] = { completed: false, failed: false, skipped: true };
         return;
       }
@@ -245,6 +299,7 @@ export class WorkflowExecutor {
           nodeId,
           reason: `when condition false: ${node.when}`,
         });
+        logNodeSkip(runId, nodeId, `when condition false: ${node.when}`);
         nodeStatuses[nodeId] = { completed: false, failed: false, skipped: true };
         return;
       }
@@ -258,10 +313,12 @@ export class WorkflowExecutor {
       const execId = this.store.createNodeExecution(runId, nodeId, attempt);
       this.store.updateNodeExecutionStatus(execId, "running");
       this.eventBus.emit("node:start", { runId, nodeId, attempt });
+      logNodeStart(runId, nodeId, attempt);
 
       try {
         const result = await dispatchNode(node, {
           workflow,
+          config,
           runId,
           nodeId,
           cwd,
@@ -297,6 +354,7 @@ export class WorkflowExecutor {
         this.store.saveOutput(execId, output);
         this.store.recordEvent(runId, nodeId, "node:complete");
         this.eventBus.emit("node:complete", { runId, nodeId, output, durationMs });
+        logNodeComplete(runId, nodeId, durationMs);
         nodeOutputs[nodeId] = { output };
         nodeStatuses[nodeId] = { completed: true, failed: false, skipped: false };
         return;
@@ -350,6 +408,7 @@ export class WorkflowExecutor {
           error: errorMessage,
           attempt,
         });
+        logNodeError(runId, nodeId, errorMessage, attempt);
         nodeStatuses[nodeId] = { completed: false, failed: true, skipped: false };
         throw error;
       }

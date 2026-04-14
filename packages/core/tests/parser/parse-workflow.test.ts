@@ -40,6 +40,49 @@ describe("parseWorkflow", () => {
     await expect(parseWorkflow("not-a-real-file.yaml", makeConfig(fixturesDir))).rejects.toThrow();
   });
 
+  it("throws on duplicate node IDs", async () => {
+    const { writeFile, mkdtemp, rm } = await import("node:fs/promises");
+    const tempDir = await mkdtemp(join(tmpdir(), "ccf-dup-test-"));
+    const yamlPath = join(tempDir, "dup-ids.yaml");
+    await writeFile(
+      yamlPath,
+      `
+name: dup-ids
+nodes:
+  - id: step1
+    script: "echo hello"
+  - id: step1
+    script: "echo world"
+`,
+    );
+    await expect(parseWorkflow(yamlPath, makeConfig(tempDir))).rejects.toThrow(
+      /Duplicate node ID: "step1"/,
+    );
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("throws on invalid depends_on reference", async () => {
+    const { writeFile, mkdtemp, rm } = await import("node:fs/promises");
+    const tempDir = await mkdtemp(join(tmpdir(), "ccf-dep-test-"));
+    const yamlPath = join(tempDir, "bad-dep.yaml");
+    await writeFile(
+      yamlPath,
+      `
+name: bad-dep
+nodes:
+  - id: step1
+    script: "echo hello"
+  - id: step2
+    script: "echo world"
+    depends_on: [nonexistent]
+`,
+    );
+    await expect(parseWorkflow(yamlPath, makeConfig(tempDir))).rejects.toThrow(
+      /Node "step2" depends on "nonexistent" which does not exist/,
+    );
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
   it("throws on invalid $nodeId.output reference in when condition", async () => {
     const { writeFile, mkdtemp, rm } = await import("node:fs/promises");
     const tempDir = await mkdtemp(join(tmpdir(), "ccf-ref-test-"));
