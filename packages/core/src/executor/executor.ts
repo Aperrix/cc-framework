@@ -10,7 +10,14 @@ import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
 import type { Workflow } from "../schema/workflow.ts";
-import type { Node } from "../schema/node.ts";
+import {
+  type Node,
+  isPromptNode,
+  isScriptNode,
+  isLoopNode,
+  isApprovalNode,
+  isCancelNode,
+} from "../schema/node.ts";
 
 export interface RunResult {
   runId: string;
@@ -209,7 +216,7 @@ export class WorkflowExecutor {
     try {
       let output = "";
 
-      if (node.script !== undefined) {
+      if (isScriptNode(node)) {
         const command = substituteVariables(node.script, builtins, nodeOutputs);
         const result = await runScript(
           command,
@@ -222,17 +229,16 @@ export class WorkflowExecutor {
         if (result.exitCode !== 0) {
           throw new Error(`Script failed with exit code ${result.exitCode}: ${output}`);
         }
-      } else if (node.prompt !== undefined) {
+      } else if (isPromptNode(node)) {
         const prompt = substituteVariables(node.prompt, builtins, nodeOutputs);
         const result = await runAi(prompt, node, workflow, cwd);
         output = result.output;
-      } else if (node.loop !== undefined) {
+      } else if (isLoopNode(node)) {
         const result = await runLoop(node, workflow, cwd, runAi);
         output = result.output;
-      } else if (node.approval !== undefined) {
-        // requestApproval throws WorkflowPausedError (never returns)
+      } else if (isApprovalNode(node)) {
         requestApproval(runId, nodeId, node.approval, this.eventBus);
-      } else if (node.cancel !== undefined) {
+      } else if (isCancelNode(node)) {
         const reason = substituteVariables(node.cancel, builtins, nodeOutputs);
         runCancel(reason);
       }
