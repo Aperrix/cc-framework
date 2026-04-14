@@ -83,4 +83,43 @@ describe("MCP tool handlers", () => {
     const result = await handlers.ccf_logs({ runId: "nonexistent" });
     expect("isError" in result && result.isError).toBe(true);
   });
+
+  it("ccf_approve approves a paused run", async () => {
+    const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+    store.updateRunStatus(runId, "paused");
+    const result = await handlers.ccf_approve({ runId, nodeId: "gate" });
+    expect(result.content[0].text).toContain("Approved");
+  });
+
+  it("ccf_reject rejects a paused run", async () => {
+    const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+    store.updateRunStatus(runId, "paused");
+    const result = await handlers.ccf_reject({ runId, nodeId: "gate", reason: "needs work" });
+    expect(result.content[0].text).toContain("Rejected");
+    expect(result.content[0].text).toContain("needs work");
+  });
+
+  it("ccf_logs shows events for a run", async () => {
+    const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+    store.recordEvent(runId, "step1", "node:start");
+    store.recordEvent(runId, "step1", "node:complete");
+    store.updateRunStatus(runId, "completed");
+    const result = await handlers.ccf_logs({ runId });
+    expect(result.content[0].text).toContain("node:start");
+    expect(result.content[0].text).toContain("node:complete");
+  });
+
+  it("ccf_approve returns error for non-paused run", async () => {
+    const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+    const result = await handlers.ccf_approve({ runId, nodeId: "gate" });
+    expect("isError" in result && result.isError).toBe(true);
+  });
 });
