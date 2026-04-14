@@ -36,6 +36,20 @@
         "vite-plus": "catalog:",
       },
     },
+    "packages/mcp": {
+      "name": "@cc-framework/mcp",
+      "version": "0.0.0",
+      "bin": {
+        "ccf-mcp": "./src/index.ts",
+      },
+      "dependencies": {
+        "@cc-framework/core": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.0.0",
+      },
+      "devDependencies": {
+        "vite-plus": "catalog:",
+      },
+    },
   },
   "overrides": {
     "vite": "catalog:",
@@ -56,6 +70,8 @@
     "@cc-framework/cli": ["@cc-framework/cli@workspace:packages/cli"],
 
     "@cc-framework/core": ["@cc-framework/core@workspace:packages/core"],
+
+    "@cc-framework/mcp": ["@cc-framework/mcp@workspace:packages/mcp"],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
