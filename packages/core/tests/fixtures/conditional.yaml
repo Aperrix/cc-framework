@@ -1,0 +1,12 @@
+name: conditional-test
+nodes:
+  - id: classify
+    prompt: "Classify the issue"
+  - id: simple-fix
+    prompt: "Quick fix"
+    depends_on: [classify]
+    when: "$classify.output.type == 'simple'"
+  - id: deep-fix
+    prompt: "Deep investigation"
+    depends_on: [classify]
+    when: "$classify.output.type == 'complex'"

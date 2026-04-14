@@ -1,0 +1,13 @@
+name: parallel-test
+nodes:
+  - id: scope
+    prompt: "Create scope"
+  - id: review-a
+    prompt: "Review A"
+    depends_on: [scope]
+  - id: review-b
+    prompt: "Review B"
+    depends_on: [scope]
+  - id: synthesize
+    prompt: "Synthesize"
+    depends_on: [review-a, review-b]
