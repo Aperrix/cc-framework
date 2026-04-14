@@ -21,22 +21,23 @@ The project is a monorepo with modular packages, compiled into a single standalo
 | Package              | Type        | Description                                                                  |
 | -------------------- | ----------- | ---------------------------------------------------------------------------- |
 | `packages/core`      | Library     | Workflow parser, DAG executor, node runners, SQLite store, event bus. No UI. |
-| `packages/cli`       | Application | Terminal interface. Imports core. Entry point for the standalone binary.     |
-| `packages/mcp`       | Application | MCP server for Claude Code integration. Exposes workflows as tools.          |
+| `packages/mcp`       | Application | MCP server — primary interface. Exposes workflows as tools for Claude Code.  |
 | `packages/workflows` | Data        | Default YAML workflows and markdown prompt files shipped with the framework. |
 | `apps/web`           | Application | React dashboard. DAG visualization, real-time logs, approval UI.             |
 
 ### Dependency Flow
 
 ```
-CLI, Web UI, MCP Server
+MCP Server, Web UI
         ↓
       Core
         ↓
-Claude Code · Shell · Git
+Claude Agent SDK · Shell · Git
 ```
 
-All three surfaces (CLI, Web, MCP) consume core's programmatic API. Core has no knowledge of its consumers.
+**MCP-first architecture:** The MCP server is the primary interface — users interact with cc-framework through Claude Code via MCP tools. No standalone CLI in v1. If a CLI is needed later (e.g., for CI/CD pipelines), it will be a thin wrapper around core.
+
+Both surfaces (MCP, Web) consume core's programmatic API. Core has no knowledge of its consumers.
 
 ## Core Internals (`packages/core`)
 
@@ -430,23 +431,9 @@ Alternatively, users can configure their IDE globally (e.g., VS Code `settings.j
 
 `ccf init` generates a `.vscode/settings.yaml` with the schema mapping pre-configured.
 
-## CLI Commands
-
-| Command                          | Description                                        |
-| -------------------------------- | -------------------------------------------------- |
-| `ccf init`                       | Initialize `.cc-framework/` in the current project |
-| `ccf run <workflow>`             | Run a workflow (by name or path)                   |
-| `ccf run <workflow> --arg value` | Run with arguments                                 |
-| `ccf list`                       | List available workflows (embedded + custom)       |
-| `ccf status`                     | Show in-progress and recent runs                   |
-| `ccf status <run-id>`            | Detail of a run (nodes, statuses, outputs)         |
-| `ccf resume <run-id>`            | Resume a paused (approval) or failed run           |
-| `ccf logs <run-id>`              | Show full logs of a run                            |
-| `ccf serve`                      | Start the Web UI + API server                      |
-
 ## Web UI (`apps/web`)
 
-React dashboard started via `ccf serve`:
+React dashboard (launch mechanism TBD — via MCP tool or standalone serve command):
 
 - **Run list** — Status, workflow name, duration, filters
 - **DAG view** — Interactive graph visualization with nodes colored by status (pending / running / completed / failed / paused)
@@ -456,18 +443,20 @@ React dashboard started via `ccf serve`:
 
 The HTTP API between Web UI and core is internal (same process). No public REST API in v1.
 
-## MCP Server (`packages/mcp`)
+## MCP Server (`packages/mcp`) — Primary Interface
 
-MCP server exposing cc-framework to Claude Code:
+MCP server exposing cc-framework to Claude Code. This is the main way users interact with the framework.
 
-| Tool          | Description                       |
-| ------------- | --------------------------------- |
-| `ccf_run`     | Run a workflow with arguments     |
-| `ccf_status`  | Get run status                    |
-| `ccf_list`    | List available workflows          |
-| `ccf_approve` | Approve a pending node            |
-| `ccf_reject`  | Reject a pending node with reason |
-| `ccf_logs`    | Get run logs                      |
+| Tool          | Description                                        |
+| ------------- | -------------------------------------------------- |
+| `ccf_init`    | Initialize `.cc-framework/` in the current project |
+| `ccf_run`     | Run a workflow with arguments                      |
+| `ccf_list`    | List available workflows (embedded + custom)       |
+| `ccf_status`  | Get run status (all runs or specific run detail)   |
+| `ccf_resume`  | Resume a paused (approval) or failed run           |
+| `ccf_approve` | Approve a pending approval node                    |
+| `ccf_reject`  | Reject a pending node with reason                  |
+| `ccf_logs`    | Get run logs                                       |
 
 ## Default Workflows (`packages/workflows`)
 
@@ -482,6 +471,6 @@ MCP server exposing cc-framework to Claude Code:
 
 ## Distribution
 
-Single standalone binary compiled with `bun build --compile`. Embeds CLI + Core + Web UI + MCP Server + default workflows. One file.
+MCP server distributed as an npm package. Users add it to their Claude Code MCP config. Core + MCP Server + default workflows are bundled together.
 
 **Runtime dependency:** `@anthropic-ai/claude-agent-sdk` — required for AI node execution. The user must have an Anthropic API key configured (`ANTHROPIC_API_KEY` env var) or be authenticated via Claude Code (`claude login`). cc-framework does not manage or proxy authentication.
