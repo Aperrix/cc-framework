@@ -1,0 +1,11 @@
+name: e2e-sequential
+description: End-to-end test with sequential script nodes and variable substitution
+nodes:
+  - id: greet
+    script: "echo 'Hello World'"
+  - id: transform
+    script: "echo 'TRANSFORMED'"
+    depends_on: [greet]
+  - id: verify
+    script: "echo 'DONE'"
+    depends_on: [transform]

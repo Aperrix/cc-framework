@@ -1,0 +1,17 @@
+name: e2e-parallel
+description: End-to-end test with parallel execution
+nodes:
+  - id: setup
+    script: "echo 'setup-complete'"
+  - id: worker-a
+    script: "echo 'result-a'"
+    depends_on: [setup]
+  - id: worker-b
+    script: "echo 'result-b'"
+    depends_on: [setup]
+  - id: worker-c
+    script: "echo 'result-c'"
+    depends_on: [setup]
+  - id: aggregate
+    script: "echo 'aggregated'"
+    depends_on: [worker-a, worker-b, worker-c]

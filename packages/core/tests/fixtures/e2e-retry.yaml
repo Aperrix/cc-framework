@@ -1,0 +1,9 @@
+name: e2e-retry
+description: End-to-end test with retry on failure
+nodes:
+  - id: flaky
+    script: "if [ ! -f /tmp/ccf-e2e-retry ]; then touch /tmp/ccf-e2e-retry && exit 1; else rm /tmp/ccf-e2e-retry && echo 'success'; fi"
+    retry:
+      max_attempts: 2
+      delay_ms: 1000
+      on_error: all

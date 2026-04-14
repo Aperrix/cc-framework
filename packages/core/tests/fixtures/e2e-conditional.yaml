@@ -1,0 +1,17 @@
+name: e2e-conditional
+description: End-to-end test with conditional branching
+nodes:
+  - id: classify
+    script: 'echo ''{"type":"bug","severity":"high"}'''
+  - id: bug-fix
+    script: "echo 'fixing bug'"
+    depends_on: [classify]
+    when: "$classify.output.type == 'bug'"
+  - id: feature-impl
+    script: "echo 'implementing feature'"
+    depends_on: [classify]
+    when: "$classify.output.type == 'feature'"
+  - id: report
+    script: "echo 'done'"
+    depends_on: [bug-fix, feature-impl]
+    trigger_rule: one_success

@@ -1,0 +1,13 @@
+name: e2e-cancel
+description: End-to-end test with conditional cancellation
+nodes:
+  - id: check
+    script: "echo 'blocked'"
+  - id: stop
+    cancel: "Pipeline blocked: $check.output"
+    depends_on: [check]
+    when: "$check.output == 'blocked'"
+  - id: continue
+    script: "echo 'this should not run'"
+    depends_on: [check]
+    when: "$check.output == 'clear'"
