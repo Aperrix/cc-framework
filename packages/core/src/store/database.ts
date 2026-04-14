@@ -2,12 +2,32 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import BetterSqlite3 from "better-sqlite3";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
+// --- Constants ---
+
+export const WORKFLOW_SOURCES = ["embedded", "custom"] as const;
+export const RUN_STATUSES = [
+  "pending",
+  "running",
+  "paused",
+  "completed",
+  "failed",
+  "cancelled",
+] as const;
+export const NODE_EXECUTION_STATUSES = [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "skipped",
+] as const;
+export const ISOLATION_STATUSES = ["active", "cleaned_up", "orphaned"] as const;
+
 // --- Table definitions ---
 
 export const workflows = sqliteTable("workflows", {
   id: text("id").primaryKey(),
   name: text("name").notNull().unique(),
-  source: text("source", { enum: ["embedded", "custom"] }).notNull(),
+  source: text("source", { enum: [...WORKFLOW_SOURCES] }).notNull(),
   yamlHash: text("yaml_hash").notNull(),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
@@ -20,9 +40,7 @@ export const runs = sqliteTable(
     workflowId: text("workflow_id")
       .notNull()
       .references(() => workflows.id),
-    status: text("status", {
-      enum: ["pending", "running", "paused", "completed", "failed", "cancelled"],
-    }).notNull(),
+    status: text("status", { enum: [...RUN_STATUSES] }).notNull(),
     arguments: text("arguments"),
     branch: text("branch"),
     worktreePath: text("worktree_path"),
@@ -43,9 +61,7 @@ export const nodeExecutions = sqliteTable(
       .notNull()
       .references(() => runs.id),
     nodeId: text("node_id").notNull(),
-    status: text("status", {
-      enum: ["pending", "running", "completed", "failed", "skipped"],
-    }).notNull(),
+    status: text("status", { enum: [...NODE_EXECUTION_STATUSES] }).notNull(),
     attempt: integer("attempt").notNull().default(1),
     startedAt: integer("started_at", { mode: "number" }).notNull(),
     finishedAt: integer("finished_at", { mode: "number" }),
@@ -96,15 +112,17 @@ export const isolationEnvironments = sqliteTable("isolation_environments", {
   strategy: text("strategy", { enum: ["worktree", "branch"] }).notNull(),
   branchName: text("branch_name").notNull(),
   worktreePath: text("worktree_path"),
-  status: text("status", { enum: ["active", "cleaned_up", "orphaned"] }).notNull(),
+  status: text("status", { enum: [...ISOLATION_STATUSES] }).notNull(),
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   cleanedAt: integer("cleaned_at", { mode: "number" }),
 });
 
-// --- Status types (derived from enum definitions) ---
+// --- Status types (derived from constants) ---
 
-export type RunStatus = "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
-export type NodeExecutionStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+export type RunStatus = (typeof RUN_STATUSES)[number];
+export type NodeExecutionStatus = (typeof NODE_EXECUTION_STATUSES)[number];
+export type IsolationStatus = (typeof ISOLATION_STATUSES)[number];
+export type WorkflowSource = (typeof WORKFLOW_SOURCES)[number];
 
 // --- Database types ---
 

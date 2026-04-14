@@ -9,6 +9,14 @@ import {
   EffortLevelSchema,
 } from "./common.ts";
 
+// --- Constants ---
+
+export const CONTEXT_MODES = ["fresh", "shared"] as const;
+export type ContextMode = (typeof CONTEXT_MODES)[number];
+
+export const SCRIPT_RUNTIMES = ["bash", "bun", "uv"] as const;
+export type ScriptRuntime = (typeof SCRIPT_RUNTIMES)[number];
+
 // --- Sub-schemas ---
 
 const LoopConfigSchema = z.object({
@@ -39,7 +47,7 @@ const NodeBaseSchema = z.object({
   depends_on: z.array(z.string()).optional().default([]),
   when: WhenConditionSchema.optional(),
   trigger_rule: TriggerRuleSchema.optional().default("all_success"),
-  context: z.enum(["fresh", "shared"]).optional().default("fresh"),
+  context: z.enum(CONTEXT_MODES).optional().default("fresh"),
   idle_timeout: z.number().int().min(0).optional(),
   retry: RetrySchema.optional(),
   // AI-specific (ignored by non-AI nodes)
@@ -69,7 +77,7 @@ const NodeTypesSchema = z.object({
   approval: ApprovalConfigSchema.optional(),
   cancel: z.string().min(1).optional(),
   // Script-specific fields (only valid when script is set)
-  runtime: z.enum(["bash", "bun", "uv"]).optional(),
+  runtime: z.enum(SCRIPT_RUNTIMES).optional(),
   deps: z.array(z.string()).optional(),
   timeout: z.number().int().positive().optional(),
 });
