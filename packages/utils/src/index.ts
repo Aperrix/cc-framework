@@ -13,7 +13,7 @@ export {
   type LogWriter,
 } from "./logger.ts";
 
-export { sanitize, addPattern } from "./credential-sanitizer.ts";
+export { sanitize, sanitizeSync, addPattern } from "./credential-sanitizer.ts";
 
 export { stripClaudeCodeMarkers } from "./strip-cwd-env.ts";
 
