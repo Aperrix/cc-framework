@@ -43,27 +43,39 @@ Both surfaces (MCP, Web) consume core's programmatic API. Core has no knowledge 
 
 ### Modules
 
-| Module       | Responsibility                                                                                                                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parser/`    | Loads and validates YAML workflow files via Zod schemas. Resolves `prompt:` file references from `.cc-framework/prompts/` or project root. Produces typed `WorkflowDefinition` objects.                       |
-| `schema/`    | Zod schemas defining the workflow YAML format. Source of truth for validation, TypeScript types, and JSON Schema generation (via `zod-to-json-schema`) for IDE autocompletion.                                |
-| `dag/`       | Builds the dependency graph from `WorkflowDefinition`. Topological sort, cycle detection, parallel layer computation.                                                                                         |
-| `executor/`  | Traverses the DAG layer by layer. Evaluates `when:` conditions, runs nodes in parallel within a layer, handles retries, checkpoint/resume.                                                                    |
-| `runners/`   | One runner per node type: `ai` (calls `query()` from `@anthropic-ai/claude-agent-sdk`), `shell` (executes bash), `loop` (iterates AI runner), `approval` (pauses for human input), `cancel` (stops workflow). |
-| `store/`     | SQLite persistence layer via better-sqlite3. Synchronous API.                                                                                                                                                 |
-| `isolation/` | Git worktree and branch management. Setup and cleanup per workflow run.                                                                                                                                       |
-| `variables/` | Resolves substitutions in prompt strings: `$nodeId.output`, `$ARGUMENTS`, `$ARTIFACTS_DIR`, JSON dot notation.                                                                                                |
-| `events/`    | EventEmitter bus for consumers. Emits: `node:start`, `node:complete`, `node:error`, `run:progress`, `run:done`.                                                                                               |
+| Module         | Responsibility                                                                                                                                                                                                                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `constants.ts` | Centralized `as const` arrays and derived types for all enum-like values. Single source of truth imported by all other modules.                                                                                                                                                                             |
+| `config/`      | Hierarchical configuration loader: built-in defaults → global YAML (`~/.cc-framework/config.yaml`) → project YAML (`.cc-framework/config.yaml`) → environment variables.                                                                                                                                    |
+| `schema/`      | Zod v4 schemas defining the workflow YAML format. Source of truth for validation, TypeScript types, and JSON Schema generation (via native `z.toJSONSchema()`).                                                                                                                                             |
+| `parser/`      | Loads and validates YAML workflow files via Zod schemas. Resolves `prompt:` file references from `.cc-framework/prompts/` or project root.                                                                                                                                                                  |
+| `discovery/`   | Multi-stage discovery for workflows, prompts, and scripts across embedded defaults → global → project directories, with override by name.                                                                                                                                                                   |
+| `dag/`         | Builds the dependency graph via Kahn's algorithm. Topological sort, cycle detection, parallel layer computation.                                                                                                                                                                                            |
+| `executor/`    | Traverses the DAG layer by layer. Evaluates `when:` conditions, dispatches to runners, handles retry with exponential backoff, checkpoint/resume, session threading, inter-node output validation, and status checks between layers.                                                                        |
+| `runners/`     | One runner per execution type: `ai` (Claude Agent SDK `query()`), `code-mode` (LLM generates script, framework executes it), `script` (bash/bun/uv via `execFile()`), `loop` (iterates AI runner), `approval` (DB-backed pause/resume), `cancel` (stops workflow), `error-classifier` (fatal vs transient). |
+| `store/`       | Drizzle ORM over SQLite (better-sqlite3). 7 tables with typed queries. Includes workflow metrics (`getWorkflowStats()`).                                                                                                                                                                                    |
+| `isolation/`   | Git worktree and branch management. Setup, cleanup, orphan detection, and stale worktree pruning.                                                                                                                                                                                                           |
+| `variables/`   | Resolves substitutions in prompt strings: `$nodeId.output`, `$nodeId.output.field`, `$ARGUMENTS`, `$ARTIFACTS_DIR`, JSON dot notation.                                                                                                                                                                      |
+| `events/`      | Typed EventEmitter bus for consumers. Emits: `node:start`, `node:complete`, `node:error`, `node:skipped`, `run:progress`, `run:done`, `approval:request`.                                                                                                                                                   |
 
 ### Execution Flow
 
-1. **Parse** — YAML file loaded, validated, `prompt:` file references resolved
-2. **Build DAG** — Nodes and dependencies assembled into a graph, topological layers computed
-3. **Setup isolation** — Worktree or branch created based on workflow config
-4. **Execute layers** — For each layer, evaluate `when:` conditions, run eligible nodes in parallel
-5. **For each node** — Dispatch to appropriate runner, capture output, store in SQLite
-6. **Checkpoint** — After each node completes, persist state for resume capability
-7. **Cleanup** — On completion or failure, clean up isolation environment if configured
+1. **Load config** — Hierarchical merge: defaults → global YAML → project YAML → env vars
+2. **Parse** — YAML file loaded, validated via Zod v4, `prompt:` file references resolved
+3. **Build DAG** — Nodes assembled into topological layers via Kahn's algorithm
+4. **Setup isolation** — Worktree or branch created based on workflow config (if configured)
+5. **Pre-create artifacts** — `$ARTIFACTS_DIR` created on disk for node file outputs
+6. **Execute layers** — For each layer:
+   a. Skip completed nodes (checkpoint/resume)
+   b. Evaluate `when:` conditions, skip non-matching nodes
+   c. Run eligible nodes in parallel via `Promise.allSettled()`
+   d. Thread session IDs through sequential (single-node) layers
+   e. For AI nodes: dispatch to agent mode (`runAi`) or code mode (`runCodeMode`)
+   f. For each node: validate structured output against `output_format` schema
+   g. On failure: classify error (fatal/transient), retry with exponential backoff if retryable
+   h. Persist node output in SQLite for downstream variable substitution
+7. **Between layers** — Check run status in DB (supports external cancellation/pause)
+8. **Finalize** — Update run status, emit `run:done` event, cleanup isolation if configured
 
 ## Workflow YAML Specification
 
@@ -108,7 +120,11 @@ for await (const message of query({
 ```yaml
 name: workflow-name
 description: What this workflow does
-model: sonnet # Claude Code model override
+provider: claude # AI provider (currently only Claude supported)
+model: sonnet # Claude model override
+modelReasoningEffort: high # Codex-style reasoning effort
+webSearchMode: disabled # disabled / cached / live
+additionalDirectories: [] # Extra directories for context
 interactive: false # Web UI: run in foreground if true
 effort: high # Reasoning depth
 thinking: adaptive # Extended thinking mode
@@ -116,6 +132,8 @@ fallbackModel: claude-haiku-4-5-20251001
 betas: ["context-1m-2025-08-07"]
 sandbox:
   enabled: true
+  autoAllowBashIfSandboxed: false
+  ignoreViolations: false
   network:
     allowedDomains: []
     allowManagedDomainsOnly: true
@@ -224,8 +242,11 @@ Invalid expressions default to `false` (node skipped).
 nodes:
   - id: ai-node
     prompt: investigate-issue.md
+    execution: agent # "agent" (default) or "code"
     model: opus # Per-node model override
-    output_format: # Structured output
+    provider: claude # Per-node provider override
+    maxBudgetUsd: 2.50 # Maximum cost for this node
+    output_format: # Structured output (validated before passing downstream)
       type: object
       properties:
         field_name:
@@ -246,6 +267,7 @@ nodes:
     skills: [skill-name]
     sandbox:
       enabled: true
+      autoAllowBashIfSandboxed: false
       filesystem:
         denyWrite: ["/etc", "/usr"]
       network:
@@ -423,8 +445,10 @@ my-project/
 │   ├── config.yaml              # Project configuration
 │   ├── workflows/               # Custom workflows
 │   │   └── my-workflow.yaml
-│   └── prompts/                 # Reusable markdown prompt files
-│       └── investigate-issue.md
+│   ├── prompts/                 # Reusable markdown prompt files
+│   │   └── investigate-issue.md
+│   └── scripts/                 # Reusable script files (.sh, .ts, .py)
+│       └── setup.sh
 └── ...
 ```
 
@@ -433,6 +457,7 @@ my-project/
 ```
 ~/.cc-framework/
 ├── config.yaml                  # Global config (overridable per project)
+├── workflows/                   # Global workflows (available to all projects)
 └── cc-framework.db              # SQLite database
 ```
 
@@ -440,11 +465,11 @@ Default workflows (shipped with the binary) are available without being copied i
 
 ## IDE Autocompletion (JSON Schema)
 
-Zod schemas in `packages/core/schema/` are the single source of truth for:
+Zod v4 schemas in `packages/core/schema/` are the single source of truth for:
 
-- **Runtime validation** — YAML parsed via `yaml` library, validated with Zod
+- **Runtime validation** — YAML parsed via `yaml` library, validated with Zod v4
 - **TypeScript types** — inferred from Zod schemas via `z.infer<>`
-- **JSON Schema** — generated via `zod-to-json-schema` at build time, output as `workflow.schema.json`
+- **JSON Schema** — generated via Zod v4's native `z.toJSONSchema()` (no external library needed)
 
 The JSON Schema is distributed with the binary and published at a stable URL. Users activate autocompletion in their workflow YAML files via:
 
