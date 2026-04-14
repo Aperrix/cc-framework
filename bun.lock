@@ -26,6 +26,8 @@
       "name": "@cc-framework/core",
       "version": "0.0.0",
       "dependencies": {
+        "@cc-framework/utils": "workspace:*",
+        "@cc-framework/workflows": "workspace:*",
         "yaml": "^2.7.0",
       },
       "devDependencies": {

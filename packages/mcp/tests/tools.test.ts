@@ -89,7 +89,12 @@ describe("MCP tool handlers", () => {
     const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
     const runId = store.createRun(wfId);
     store.updateRunStatus(runId, "running");
-    store.updateRunStatus(runId, "paused");
+    store.pauseRun(runId, {
+      nodeId: "gate",
+      message: "Please approve",
+      captureResponse: false,
+      rejectionCount: 0,
+    });
     const result = await handlers.ccf_approve({ runId, nodeId: "gate" });
     expect(result.content[0].text).toContain("Approved");
   });
@@ -98,7 +103,12 @@ describe("MCP tool handlers", () => {
     const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
     const runId = store.createRun(wfId);
     store.updateRunStatus(runId, "running");
-    store.updateRunStatus(runId, "paused");
+    store.pauseRun(runId, {
+      nodeId: "gate",
+      message: "Please approve",
+      captureResponse: false,
+      rejectionCount: 0,
+    });
     const result = await handlers.ccf_reject({ runId, nodeId: "gate", reason: "needs work" });
     expect(result.content[0].text).toContain("Rejected");
     expect(result.content[0].text).toContain("needs work");

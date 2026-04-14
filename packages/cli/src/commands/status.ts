@@ -1,5 +1,6 @@
 /** ccf status [runId] — show run status. */
 
+import { getWorkflowStatus } from "@cc-framework/core";
 import type { StoreQueries } from "@cc-framework/workflows";
 import { formatRunStatus } from "../shared/format.ts";
 
@@ -9,14 +10,12 @@ export async function commandStatus(
   sessionId: string,
 ): Promise<string> {
   if (runId) {
-    // Specific run
     const run = store.getRun(runId);
     if (!run) throw new Error(`Run "${runId}" not found.`);
     return formatRunStatus(run);
   }
 
-  // List recent runs in session
-  const runs = store.getSessionRuns(sessionId);
+  const { runs } = getWorkflowStatus(store, sessionId);
   if (runs.length === 0) return "No runs in current session.";
 
   return runs.map((r) => formatRunStatus(r)).join("\n");

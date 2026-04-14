@@ -1,6 +1,12 @@
 /** MCP tool definitions for cc-framework. */
 
-import { initProject } from "@cc-framework/core";
+import {
+  initProject,
+  approveWorkflow,
+  rejectWorkflow,
+  resumeWorkflow,
+  getWorkflowStatus,
+} from "@cc-framework/core";
 import {
   discoverWorkflows,
   findWorkflow,
@@ -229,7 +235,7 @@ export function createHandlers(ctx: McpContext) {
           if (!run) return error(`Run "${args.runId}" not found.`);
           return text(fmtRun(run));
         }
-        const runs = ctx.store.getSessionRuns(ctx.sessionId);
+        const { runs } = getWorkflowStatus(ctx.store, ctx.sessionId);
         if (runs.length === 0) return text("No runs in current session.");
         return text(runs.map(fmtRun).join("\n"));
       } catch (e) {
@@ -239,28 +245,7 @@ export function createHandlers(ctx: McpContext) {
 
     ccf_resume: async (args: { runId: string }) => {
       try {
-        const run = ctx.store.getRun(args.runId);
-        if (!run) return error(`Run "${args.runId}" not found.`);
-        if (run.status !== "failed" && run.status !== "paused") {
-          return error(`Run is ${run.status} \u2014 can only resume failed or paused runs.`);
-        }
-
-        const wf = ctx.store.getWorkflow(run.workflowId);
-        if (!wf) return error("Workflow not found in database.");
-
-        const discovered = await findWorkflow(wf.name, ctx.config);
-        if (!discovered) return error(`Workflow "${wf.name}" no longer exists on disk.`);
-
-        const workflow = await parseWorkflow(discovered.path, ctx.config);
-        const eventBus = new WorkflowEventBus();
-        const executor = new WorkflowExecutor(ctx.store, eventBus);
-        const result = await executor.resume(
-          workflow,
-          args.runId,
-          ctx.cwd,
-          run.arguments ?? undefined,
-          ctx.config,
-        );
+        const result = await resumeWorkflow(args.runId, ctx.config, ctx.store, ctx.cwd);
         return text(fmtRun({ id: result.runId, status: result.status, startedAt: Date.now() }));
       } catch (e) {
         return error(e instanceof Error ? e.message : String(e));
@@ -269,12 +254,9 @@ export function createHandlers(ctx: McpContext) {
 
     ccf_approve: async (args: { runId: string; nodeId: string }) => {
       try {
-        const run = ctx.store.getRun(args.runId);
-        if (!run) return error(`Run "${args.runId}" not found.`);
-        if (run.status !== "paused") return error(`Run is ${run.status} \u2014 not paused.`);
-        ctx.store.recordEvent(args.runId, args.nodeId, "approval:approved");
-        ctx.store.resumeRun(args.runId);
-        return text(`Approved node "${args.nodeId}". Use ccf_resume to continue execution.`);
+        const result = approveWorkflow(args.runId, args.nodeId, ctx.store);
+        const name = result.workflowName ? ` (${result.workflowName})` : "";
+        return text(`Approved node "${args.nodeId}"${name}. Use ccf_resume to continue execution.`);
       } catch (e) {
         return error(e instanceof Error ? e.message : String(e));
       }
@@ -282,12 +264,9 @@ export function createHandlers(ctx: McpContext) {
 
     ccf_reject: async (args: { runId: string; nodeId: string; reason?: string }) => {
       try {
-        const run = ctx.store.getRun(args.runId);
-        if (!run) return error(`Run "${args.runId}" not found.`);
-        if (run.status !== "paused") return error(`Run is ${run.status} \u2014 not paused.`);
-        ctx.store.recordEvent(args.runId, args.nodeId, "approval:rejected", args.reason);
+        const result = rejectWorkflow(args.runId, args.nodeId, ctx.store, args.reason);
         return text(
-          `Rejected node "${args.nodeId}".${args.reason ? ` Reason: ${args.reason}` : ""}`,
+          `Rejected node "${args.nodeId}".${result.reason !== "Rejected" ? ` Reason: ${result.reason}` : ""}`,
         );
       } catch (e) {
         return error(e instanceof Error ? e.message : String(e));

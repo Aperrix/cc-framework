@@ -1,5 +1,6 @@
 /** ccf reject <runId> <nodeId> [--reason "..."] — reject a pending approval node. */
 
+import { rejectWorkflow } from "@cc-framework/core";
 import type { StoreQueries } from "@cc-framework/workflows";
 
 export async function commandReject(
@@ -8,11 +9,6 @@ export async function commandReject(
   reason: string | undefined,
   store: StoreQueries,
 ): Promise<string> {
-  const run = store.getRun(runId);
-  if (!run) throw new Error(`Run "${runId}" not found.`);
-  if (run.status !== "paused") throw new Error(`Run "${runId}" is ${run.status} — not paused.`);
-
-  store.recordEvent(runId, nodeId, "approval:rejected", reason);
-
-  return `Rejected node "${nodeId}" in run ${runId.slice(0, 8)}.${reason ? ` Reason: ${reason}` : ""}`;
+  const result = rejectWorkflow(runId, nodeId, store, reason);
+  return `Rejected node "${nodeId}" in run ${runId.slice(0, 8)}.${result.reason !== "Rejected" ? ` Reason: ${result.reason}` : ""}`;
 }

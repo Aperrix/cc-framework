@@ -34,6 +34,13 @@ export class ValidationError extends CcfError {
   }
 }
 
+/** Narrow an unknown caught value to an Error instance. */
+export function toError(value: unknown): Error {
+  if (value instanceof Error) return value;
+  if (typeof value === "string") return new Error(value);
+  return new Error(String(value));
+}
+
 /** Format an error for user-friendly display. */
 export function formatError(error: unknown): string {
   if (error instanceof CcfError) {

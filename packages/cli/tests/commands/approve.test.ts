@@ -19,7 +19,12 @@ describe("commandApprove", () => {
     const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
     const runId = store.createRun(wfId);
     store.updateRunStatus(runId, "running");
-    store.updateRunStatus(runId, "paused");
+    store.pauseRun(runId, {
+      nodeId: "review-gate",
+      message: "Please review",
+      captureResponse: false,
+      rejectionCount: 0,
+    });
     const result = await commandApprove(runId, "review-gate", store);
     expect(result).toContain("Approved");
     expect(result).toContain("review-gate");
@@ -29,7 +34,7 @@ describe("commandApprove", () => {
     const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
     const runId = store.createRun(wfId);
     store.updateRunStatus(runId, "running");
-    await expect(commandApprove(runId, "gate", store)).rejects.toThrow(/not paused/);
+    await expect(commandApprove(runId, "gate", store)).rejects.toThrow(/Cannot approve/);
   });
 
   it("throws for missing run", async () => {

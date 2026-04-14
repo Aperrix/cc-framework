@@ -37,5 +37,6 @@ export {
   NodeExecutionError,
   ConfigError,
   ValidationError,
+  toError,
   formatError,
 } from "./error.ts";
