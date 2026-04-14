@@ -1,2 +1,63 @@
-// Public API — will be populated as modules are built
-export {};
+// packages/core/src/index.ts
+
+// Schema
+export { WorkflowSchema, type Workflow } from "./schema/workflow.ts";
+export { NodeSchema, type Node, type LoopConfig, type ApprovalConfig } from "./schema/node.ts";
+export {
+  TriggerRuleSchema,
+  IsolationSchema,
+  RetrySchema,
+  OutputFormatSchema,
+  type TriggerRule,
+  type Isolation,
+  type Retry,
+  type OutputFormat,
+} from "./schema/common.ts";
+export { generateWorkflowJsonSchema } from "./schema/generate-json-schema.ts";
+
+// Parser
+export { parseWorkflow } from "./parser/parse-workflow.ts";
+export { resolvePrompt } from "./parser/resolve-prompt.ts";
+
+// DAG
+export { buildDag, type DagLayer } from "./dag/build-dag.ts";
+
+// Variables
+export { substituteVariables } from "./variables/substitute.ts";
+
+// Store
+export { createDatabase, type Database } from "./store/database.ts";
+export { StoreQueries } from "./store/queries.ts";
+
+// Runners
+export { runShell, type ShellResult } from "./runners/shell-runner.ts";
+export { runAi, type AiResult } from "./runners/ai-runner.ts";
+export { runLoop, type LoopResult } from "./runners/loop-runner.ts";
+export {
+  requestApproval,
+  resolveApproval,
+  type ApprovalResult,
+} from "./runners/approval-runner.ts";
+export { runCancel, WorkflowCancelledError } from "./runners/cancel-runner.ts";
+
+// Executor
+export { WorkflowExecutor, type RunResult } from "./executor/executor.ts";
+
+// Events
+export {
+  WorkflowEventBus,
+  type NodeStartEvent,
+  type NodeCompleteEvent,
+  type NodeErrorEvent,
+  type NodeSkippedEvent,
+  type RunProgressEvent,
+  type RunDoneEvent,
+  type ApprovalRequestEvent,
+} from "./events/event-bus.ts";
+
+// Isolation
+export {
+  setupIsolation,
+  cleanupIsolation,
+  type IsolationEnvironment,
+} from "./isolation/isolation.ts";
