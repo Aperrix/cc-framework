@@ -1,0 +1,4 @@
+name: minimal-test
+nodes:
+  - id: greet
+    prompt: "Say hello"
