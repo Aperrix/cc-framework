@@ -10,6 +10,7 @@ import {
   NODE_EXECUTION_STATUSES,
   ISOLATION_STATUSES,
   ISOLATION_STRATEGIES,
+  SESSION_STATUSES,
 } from "../constants.ts";
 
 // Re-export constants and types from centralized module
@@ -19,6 +20,7 @@ export type {
   NodeExecutionStatus,
   IsolationStatus,
   WorkflowSource,
+  SessionStatus,
 } from "../constants.ts";
 
 // ---- Table Definitions ----
@@ -32,6 +34,20 @@ export const workflows = sqliteTable("workflows", {
   updatedAt: integer("updated_at", { mode: "number" }).notNull(),
 });
 
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    status: text("status", { enum: [...SESSION_STATUSES] }).notNull(),
+    projectPath: text("project_path").notNull(),
+    metadata: text("metadata"),
+    createdAt: integer("created_at", { mode: "number" }).notNull(),
+    lastActivity: integer("last_activity", { mode: "number" }).notNull(),
+    closedAt: integer("closed_at", { mode: "number" }),
+  },
+  (table) => [index("idx_sessions_status").on(table.status)],
+);
+
 export const runs = sqliteTable(
   "runs",
   {
@@ -43,12 +59,14 @@ export const runs = sqliteTable(
     arguments: text("arguments"),
     branch: text("branch"),
     worktreePath: text("worktree_path"),
+    sessionId: text("session_id").references(() => sessions.id),
     startedAt: integer("started_at", { mode: "number" }).notNull(),
     finishedAt: integer("finished_at", { mode: "number" }),
   },
   (table) => [
     index("idx_runs_workflow").on(table.workflowId),
     index("idx_runs_status").on(table.status),
+    index("idx_runs_session").on(table.sessionId),
   ],
 );
 
@@ -142,6 +160,15 @@ export function createDatabase(path: string) {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      status TEXT NOT NULL CHECK (status IN ('active', 'closed', 'expired')),
+      project_path TEXT NOT NULL,
+      metadata TEXT,
+      created_at INTEGER NOT NULL,
+      last_activity INTEGER NOT NULL,
+      closed_at INTEGER
+    );
     CREATE TABLE IF NOT EXISTS runs (
       id TEXT PRIMARY KEY,
       workflow_id TEXT NOT NULL REFERENCES workflows(id),
@@ -149,6 +176,7 @@ export function createDatabase(path: string) {
       arguments TEXT,
       branch TEXT,
       worktree_path TEXT,
+      session_id TEXT REFERENCES sessions(id),
       started_at INTEGER NOT NULL,
       finished_at INTEGER
     );
@@ -193,8 +221,10 @@ export function createDatabase(path: string) {
       created_at INTEGER NOT NULL,
       cleaned_at INTEGER
     );
+    CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
     CREATE INDEX IF NOT EXISTS idx_runs_workflow ON runs(workflow_id);
     CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+    CREATE INDEX IF NOT EXISTS idx_runs_session ON runs(session_id);
     CREATE INDEX IF NOT EXISTS idx_node_executions_run ON node_executions(run_id);
     CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id);
   `;

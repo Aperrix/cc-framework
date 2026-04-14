@@ -2,13 +2,18 @@
 
 import { randomUUID } from "node:crypto";
 
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, lt } from "drizzle-orm";
 
 import type { Database } from "./database.ts";
-import type { RunStatus, NodeExecutionStatus, WorkflowSource } from "../constants.ts";
+import type {
+  RunStatus,
+  NodeExecutionStatus,
+  WorkflowSource,
+  SessionStatus,
+} from "../constants.ts";
 import { TERMINAL_RUN_STATUSES, TERMINAL_NODE_STATUSES } from "../constants.ts";
 import type { ApprovalContext } from "../runners/approval-runner.ts";
-import { workflows, runs, nodeExecutions, outputs, events } from "./database.ts";
+import { workflows, runs, nodeExecutions, outputs, events, sessions } from "./database.ts";
 
 // ---- Workflow Operations ----
 
@@ -306,6 +311,106 @@ export class StoreQueries {
       .orderBy(desc(events.timestamp))
       .get();
     return event?.timestamp ?? null;
+  }
+
+  // ---- Metrics Operations ----
+
+  // ---- Session Operations ----
+
+  /** Create a new active session for a project. */
+  createSession(projectPath: string, metadata?: Record<string, unknown>): string {
+    const id = randomUUID();
+    const now = Date.now();
+    this.db
+      .insert(sessions)
+      .values({
+        id,
+        status: "active",
+        projectPath,
+        metadata: metadata ? JSON.stringify(metadata) : null,
+        createdAt: now,
+        lastActivity: now,
+      })
+      .run();
+    return id;
+  }
+
+  /** Get a session by ID. */
+  getSession(id: string) {
+    return this.db.select().from(sessions).where(eq(sessions.id, id)).get() ?? null;
+  }
+
+  /** Get the most recent active session for a project path. */
+  getActiveSession(projectPath: string) {
+    return (
+      this.db
+        .select()
+        .from(sessions)
+        .where(and(eq(sessions.projectPath, projectPath), eq(sessions.status, "active")))
+        .orderBy(desc(sessions.lastActivity))
+        .get() ?? null
+    );
+  }
+
+  /** Close a session (mark as closed). */
+  closeSession(id: string): void {
+    this.db
+      .update(sessions)
+      .set({ status: "closed" satisfies SessionStatus, closedAt: Date.now() })
+      .where(eq(sessions.id, id))
+      .run();
+  }
+
+  /** Update last activity timestamp for a session. */
+  updateSessionActivity(id: string): void {
+    this.db.update(sessions).set({ lastActivity: Date.now() }).where(eq(sessions.id, id)).run();
+  }
+
+  /** Expire sessions that have been inactive longer than maxInactivityMs. Returns count. */
+  expireStaleSessions(maxInactivityMs: number): number {
+    const cutoff = Date.now() - maxInactivityMs;
+    const stale = this.db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(and(eq(sessions.status, "active"), lt(sessions.lastActivity, cutoff)))
+      .all();
+
+    for (const s of stale) {
+      this.db
+        .update(sessions)
+        .set({ status: "expired" satisfies SessionStatus, closedAt: Date.now() })
+        .where(eq(sessions.id, s.id))
+        .run();
+    }
+    return stale.length;
+  }
+
+  /** Create a run associated with a session. */
+  createRunInSession(workflowId: string, sessionId: string, args?: string): string {
+    const id = randomUUID();
+    this.db
+      .insert(runs)
+      .values({
+        id,
+        workflowId,
+        status: "pending",
+        arguments: args ?? null,
+        sessionId,
+        startedAt: Date.now(),
+      })
+      .run();
+    this.updateSessionActivity(sessionId);
+    return id;
+  }
+
+  /** Get all runs for a session, ordered chronologically. */
+  getSessionRuns(sessionId: string) {
+    return this.db
+      .select()
+      .from(runs)
+      .where(eq(runs.sessionId, sessionId))
+      .orderBy(runs.startedAt)
+      .all();
   }
 
   // ---- Metrics Operations ----

@@ -65,8 +65,15 @@ export {
   events,
   artifacts,
   isolationEnvironments,
+  sessions,
 } from "./store/database.ts";
 export { StoreQueries } from "./store/queries.ts";
+export {
+  buildSessionContext,
+  formatSessionContext,
+  type SessionContext,
+  type SessionRunSummary,
+} from "./store/session-context.ts";
 
 // ---- Runners ----
 export { runScript, type ScriptResult } from "./runners/script-runner.ts";

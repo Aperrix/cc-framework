@@ -69,3 +69,6 @@ export type TerminalNodeStatus = (typeof TERMINAL_NODE_STATUSES)[number];
 
 export const ISOLATION_STATUSES = ["active", "cleaned_up", "orphaned"] as const;
 export type IsolationStatus = (typeof ISOLATION_STATUSES)[number];
+
+export const SESSION_STATUSES = ["active", "closed", "expired"] as const;
+export type SessionStatus = (typeof SESSION_STATUSES)[number];

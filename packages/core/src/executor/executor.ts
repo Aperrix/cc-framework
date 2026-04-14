@@ -26,6 +26,8 @@ import {
   logNodeError,
 } from "../logger.ts";
 
+import { buildSessionContext, formatSessionContext } from "../store/session-context.ts";
+
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
 import type { Workflow } from "../schema/workflow.ts";
@@ -53,11 +55,16 @@ export class WorkflowExecutor {
     cwd: string,
     args?: string,
     config?: ResolvedConfig,
+    sessionId?: string,
   ): Promise<RunResult> {
     // Phase 1: Persist workflow and create run record
     const yamlHash = createHash("sha256").update(JSON.stringify(workflow)).digest("hex");
     const workflowId = this.store.upsertWorkflow(workflow.name, "embedded", yamlHash);
-    const runId = this.store.createRun(workflowId, args);
+
+    // Create run — associated with session if provided
+    const runId = sessionId
+      ? this.store.createRunInSession(workflowId, sessionId, args)
+      : this.store.createRun(workflowId, args);
     this.store.updateRunStatus(runId, "running");
 
     return this.executeFromLayers(
@@ -68,6 +75,7 @@ export class WorkflowExecutor {
       {}, // No prior node outputs
       new Set(), // No completed nodes
       config ?? CONFIG_DEFAULTS,
+      sessionId,
     );
   }
 
@@ -81,6 +89,7 @@ export class WorkflowExecutor {
     cwd: string,
     args?: string,
     config?: ResolvedConfig,
+    sessionId?: string,
   ): Promise<RunResult> {
     // Load already-completed node outputs
     const completedNodeIds = this.store.getCompletedNodeIds(runId);
@@ -97,6 +106,7 @@ export class WorkflowExecutor {
       nodeOutputs,
       completedNodeIds,
       config ?? CONFIG_DEFAULTS,
+      sessionId,
     );
   }
 
@@ -113,6 +123,7 @@ export class WorkflowExecutor {
     nodeOutputs: Record<string, { output: string }>,
     completedNodeIds: Set<string>,
     config: ResolvedConfig,
+    sessionId?: string,
   ): Promise<RunResult> {
     const startTime = Date.now();
     logWorkflowStart(runId, workflow.name);
@@ -144,6 +155,15 @@ export class WorkflowExecutor {
       DOCS_DIR: `${effectiveCwd}/docs`,
     };
     if (args) builtins.ARGUMENTS = args;
+
+    // Inject cross-workflow session context if running within a session
+    if (sessionId) {
+      const ctx = buildSessionContext(sessionId, this.store);
+      const formatted = formatSessionContext(ctx);
+      if (formatted) {
+        builtins.SESSION_CONTEXT = formatted;
+      }
+    }
 
     // Track node terminal statuses for trigger rule evaluation
     // Pre-populate from completed nodes (important for resume scenarios)
