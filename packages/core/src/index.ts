@@ -72,7 +72,9 @@ export { runAi, type AiResult } from "./runners/ai-runner.ts";
 export { runLoop, type LoopResult } from "./runners/loop-runner.ts";
 export {
   requestApproval,
-  resolveApproval,
+  WorkflowPausedError,
+  isApprovalContext,
+  type ApprovalContext,
   type ApprovalResult,
 } from "./runners/approval-runner.ts";
 export { runCancel, WorkflowCancelledError } from "./runners/cancel-runner.ts";

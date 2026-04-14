@@ -30,11 +30,11 @@ describe("Integration: YAML → Parse → Execute", () => {
     eventBus.on("node:complete", (e) => events.push(`complete:${e.nodeId}`));
     eventBus.on("run:done", (e) => events.push(`done:${e.status}`));
 
-    // Override the prompt node with a bash node for testing (no API key needed)
+    // Override the prompt node with a script node for testing (no API key needed)
     workflow.nodes[0] = {
       ...workflow.nodes[0],
       prompt: undefined,
-      bash: "echo 'Hello from integration test'",
+      script: "echo 'Hello from integration test'",
     } as any;
 
     const executor = new WorkflowExecutor(store, eventBus);
@@ -53,10 +53,10 @@ describe("Integration: YAML → Parse → Execute", () => {
     const store = new StoreQueries(db);
     const eventBus = new WorkflowEventBus();
 
-    // Replace AI nodes with bash for testing
+    // Replace AI nodes with script nodes for testing
     for (const node of workflow.nodes) {
       (node as any).prompt = undefined;
-      (node as any).bash = `echo '${node.id} done'`;
+      (node as any).script = `echo '${node.id} done'`;
     }
 
     const executor = new WorkflowExecutor(store, eventBus);

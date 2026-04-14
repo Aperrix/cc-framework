@@ -27,14 +27,14 @@ describe("WorkflowExecutor", () => {
       nodes: [
         {
           id: "step1",
-          bash: "echo hello",
+          script: "echo hello",
           depends_on: [],
           trigger_rule: "all_success",
           context: "fresh",
         },
         {
           id: "step2",
-          bash: "echo world",
+          script: "echo world",
           depends_on: ["step1"],
           trigger_rule: "all_success",
           context: "fresh",
@@ -58,28 +58,28 @@ describe("WorkflowExecutor", () => {
       nodes: [
         {
           id: "root",
-          bash: "echo root",
+          script: "echo root",
           depends_on: [],
           trigger_rule: "all_success",
           context: "fresh",
         },
         {
           id: "a",
-          bash: "echo a",
+          script: "echo a",
           depends_on: ["root"],
           trigger_rule: "all_success",
           context: "fresh",
         },
         {
           id: "b",
-          bash: "echo b",
+          script: "echo b",
           depends_on: ["root"],
           trigger_rule: "all_success",
           context: "fresh",
         },
         {
           id: "join",
-          bash: "echo done",
+          script: "echo done",
           depends_on: ["a", "b"],
           trigger_rule: "all_success",
           context: "fresh",
@@ -105,14 +105,14 @@ describe("WorkflowExecutor", () => {
       nodes: [
         {
           id: "check",
-          bash: 'echo \'{"type":"simple"}\'',
+          script: 'echo \'{"type":"simple"}\'',
           depends_on: [],
           trigger_rule: "all_success",
           context: "fresh",
         },
         {
           id: "simple",
-          bash: "echo simple-path",
+          script: "echo simple-path",
           depends_on: ["check"],
           when: "$check.output.type == 'simple'",
           trigger_rule: "all_success",
@@ -120,7 +120,7 @@ describe("WorkflowExecutor", () => {
         },
         {
           id: "complex",
-          bash: "echo complex-path",
+          script: "echo complex-path",
           depends_on: ["check"],
           when: "$check.output.type == 'complex'",
           trigger_rule: "all_success",
@@ -150,7 +150,7 @@ describe("WorkflowExecutor", () => {
       nodes: [
         {
           id: "only",
-          bash: "echo ok",
+          script: "echo ok",
           depends_on: [],
           trigger_rule: "all_success",
           context: "fresh",

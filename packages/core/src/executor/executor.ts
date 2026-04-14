@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { buildDag } from "../dag/build-dag.ts";
 import { substituteVariables } from "../variables/substitute.ts";
-import { runShell } from "../runners/shell-runner.ts";
+import { runScript } from "../runners/script-runner.ts";
 import { runAi } from "../runners/ai-runner.ts";
 import { runLoop } from "../runners/loop-runner.ts";
-import { requestApproval } from "../runners/approval-runner.ts";
+import { requestApproval, WorkflowPausedError } from "../runners/approval-runner.ts";
 import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
@@ -106,9 +107,13 @@ export class WorkflowExecutor {
       nodeMap.set(node.id, node);
     }
 
+    // Pre-create artifacts directory
+    const artifactsDir = `${cwd}/.cc-framework/artifacts/${runId}`;
+    await mkdir(artifactsDir, { recursive: true });
+
     // Accumulate outputs across layers
     const nodeOutputs: Record<string, { output: string }> = {};
-    const builtins: Record<string, string> = {};
+    const builtins: Record<string, string> = { ARTIFACTS_DIR: artifactsDir };
     if (args) builtins.ARGUMENTS = args;
 
     let finalStatus: RunResult["status"] = "completed";
@@ -135,6 +140,8 @@ export class WorkflowExecutor {
           if (result.status === "rejected") {
             if (result.reason instanceof WorkflowCancelledError) {
               finalStatus = "cancelled";
+            } else if (result.reason instanceof WorkflowPausedError) {
+              finalStatus = "paused";
             } else {
               finalStatus = "failed";
             }
@@ -142,6 +149,13 @@ export class WorkflowExecutor {
         }
 
         if (finalStatus !== "completed") break;
+
+        // Check run status between layers (supports external cancellation/pause)
+        const currentStatus = this.store.getRunStatus(runId);
+        if (currentStatus === "cancelled" || currentStatus === "paused") {
+          finalStatus = currentStatus as any;
+          break;
+        }
       }
     } catch (error) {
       if (error instanceof WorkflowCancelledError) {
@@ -195,12 +209,18 @@ export class WorkflowExecutor {
     try {
       let output = "";
 
-      if (node.bash !== undefined) {
-        const command = substituteVariables(node.bash, builtins, nodeOutputs);
-        const result = await runShell(command, cwd);
+      if (node.script !== undefined) {
+        const command = substituteVariables(node.script, builtins, nodeOutputs);
+        const result = await runScript(
+          command,
+          cwd,
+          (node.runtime as "bash" | "bun" | "uv") ?? "bash",
+          node.deps,
+          node.timeout,
+        );
         output = result.output;
         if (result.exitCode !== 0) {
-          throw new Error(`Shell command failed with exit code ${result.exitCode}: ${output}`);
+          throw new Error(`Script failed with exit code ${result.exitCode}: ${output}`);
         }
       } else if (node.prompt !== undefined) {
         const prompt = substituteVariables(node.prompt, builtins, nodeOutputs);
@@ -210,9 +230,8 @@ export class WorkflowExecutor {
         const result = await runLoop(node, workflow, cwd, runAi);
         output = result.output;
       } else if (node.approval !== undefined) {
-        const result = await requestApproval(runId, nodeId, node.approval, this.eventBus);
-        output = result.approved ? "approved" : "rejected";
-        if (result.response) output += `: ${result.response}`;
+        // requestApproval throws WorkflowPausedError (never returns)
+        requestApproval(runId, nodeId, node.approval, this.eventBus);
       } else if (node.cancel !== undefined) {
         const reason = substituteVariables(node.cancel, builtins, nodeOutputs);
         runCancel(reason);
@@ -227,6 +246,12 @@ export class WorkflowExecutor {
       // Store output for downstream variable substitution
       nodeOutputs[nodeId] = { output };
     } catch (error) {
+      if (error instanceof WorkflowPausedError) {
+        this.store.pauseRun(runId, error.approvalContext as unknown as Record<string, unknown>);
+        // Don't mark the node as failed — it's paused
+        throw error;
+      }
+
       const durationMs = Date.now() - startTime;
       this.store.updateNodeExecutionStatus(execId, "failed", durationMs);
       const errorMessage = error instanceof Error ? error.message : String(error);

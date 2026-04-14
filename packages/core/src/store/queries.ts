@@ -1,15 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, and, desc } from "drizzle-orm";
 import type { Database } from "./database.ts";
-import {
-  workflows,
-  runs,
-  nodeExecutions,
-  outputs,
-  events,
-  artifacts,
-  isolationEnvironments,
-} from "./database.ts";
+import { workflows, runs, nodeExecutions, outputs, events } from "./database.ts";
 
 export class StoreQueries {
   constructor(private db: Database) {}
@@ -134,6 +126,45 @@ export class StoreQueries {
       .where(eq(events.runId, runId))
       .orderBy(events.timestamp)
       .all();
+  }
+
+  pauseRun(id: string, approvalContext: Record<string, unknown>): void {
+    this.db
+      .update(runs)
+      .set({ status: "paused" as any })
+      .where(eq(runs.id, id))
+      .run();
+
+    this.recordEvent(id, null, "approval:paused", JSON.stringify(approvalContext));
+  }
+
+  getApprovalContext(runId: string): Record<string, unknown> | null {
+    const event = this.db
+      .select()
+      .from(events)
+      .where(and(eq(events.runId, runId), eq(events.type, "approval:paused")))
+      .orderBy(desc(events.timestamp))
+      .get();
+
+    if (!event?.payload) return null;
+    try {
+      return JSON.parse(event.payload);
+    } catch {
+      return null;
+    }
+  }
+
+  resumeRun(id: string): void {
+    this.db
+      .update(runs)
+      .set({ status: "running" as any })
+      .where(eq(runs.id, id))
+      .run();
+  }
+
+  getRunStatus(id: string): string | null {
+    const run = this.db.select({ status: runs.status }).from(runs).where(eq(runs.id, id)).get();
+    return run?.status ?? null;
   }
 
   getNodeOutputs(runId: string): Record<string, { output: string }> {
