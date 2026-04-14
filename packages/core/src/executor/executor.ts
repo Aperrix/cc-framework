@@ -11,6 +11,7 @@ import { runLoop } from "../runners/loop-runner.ts";
 import { requestApproval, WorkflowPausedError } from "../runners/approval-runner.ts";
 import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
 import { classifyError, isRetryable } from "../runners/error-classifier.ts";
+import { validateNodeOutput } from "./validate-output.ts";
 
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
@@ -305,6 +306,11 @@ export class WorkflowExecutor {
           output = result.output;
           // Store session ID for threading to the next sequential node
           this.lastNodeSessionId = result.sessionId;
+          // If the SDK returned an error, throw it (retry logic will handle it)
+          // but the partial output is already captured in `output` for potential use
+          if (result.error) {
+            throw new Error(`AI node error (partial output preserved): ${result.error}`);
+          }
         } else if (isLoopNode(node)) {
           const result = await runLoop(node, workflow, cwd, runAi);
           output = result.output;
@@ -313,6 +319,14 @@ export class WorkflowExecutor {
         } else if (isCancelNode(node)) {
           const reason = substituteVariables(node.cancel, builtins, nodeOutputs);
           runCancel(reason);
+        }
+
+        // Validate structured output against declared schema
+        if (node.output_format && output) {
+          const validation = validateNodeOutput(node, output);
+          if (!validation.valid) {
+            throw new Error(`Output validation failed: ${validation.errors.join("; ")}`);
+          }
         }
 
         // Success — record and return

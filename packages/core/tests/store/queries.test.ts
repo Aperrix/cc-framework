@@ -83,4 +83,54 @@ describe("StoreQueries", () => {
     expect(outputs.plan).toBeDefined();
     expect(outputs.plan.output).toBe("The plan is ready");
   });
+
+  // ---- Metrics ----
+
+  it("returns workflow stats with success rate", () => {
+    const wfId = store.upsertWorkflow("metrics-wf", "custom", "hash");
+
+    // Create 3 runs: 2 completed, 1 failed
+    const run1 = store.createRun(wfId);
+    store.updateRunStatus(run1, "running");
+    store.updateRunStatus(run1, "completed");
+
+    const run2 = store.createRun(wfId);
+    store.updateRunStatus(run2, "running");
+    store.updateRunStatus(run2, "completed");
+
+    const run3 = store.createRun(wfId);
+    store.updateRunStatus(run3, "running");
+    store.updateRunStatus(run3, "failed");
+
+    const stats = store.getWorkflowStats("metrics-wf");
+    expect(stats.totalRuns).toBe(3);
+    expect(stats.completedRuns).toBe(2);
+    expect(stats.failedRuns).toBe(1);
+    expect(stats.successRate).toBeCloseTo(2 / 3);
+  });
+
+  it("returns node failure ranking", () => {
+    const wfId = store.upsertWorkflow("ranking-wf", "custom", "hash");
+
+    const run1 = store.createRun(wfId);
+    const exec1 = store.createNodeExecution(run1, "flaky-node", 1);
+    store.updateNodeExecutionStatus(exec1, "failed");
+    const exec2 = store.createNodeExecution(run1, "stable-node", 1);
+    store.updateNodeExecutionStatus(exec2, "completed");
+
+    const run2 = store.createRun(wfId);
+    const exec3 = store.createNodeExecution(run2, "flaky-node", 1);
+    store.updateNodeExecutionStatus(exec3, "failed");
+
+    const stats = store.getWorkflowStats("ranking-wf");
+    expect(stats.nodeFailureRanking).toHaveLength(1);
+    expect(stats.nodeFailureRanking[0].nodeId).toBe("flaky-node");
+    expect(stats.nodeFailureRanking[0].failureCount).toBe(2);
+  });
+
+  it("returns empty stats for unknown workflow", () => {
+    const stats = store.getWorkflowStats("nonexistent");
+    expect(stats.totalRuns).toBe(0);
+    expect(stats.successRate).toBe(0);
+  });
 });

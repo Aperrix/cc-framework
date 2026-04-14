@@ -41,6 +41,11 @@ export async function runLoop(
     lastOutput = result.output;
     sessionId = result.sessionId ?? sessionId;
 
+    // If the AI returned an error, stop the loop with what we have
+    if (result.error) {
+      return { output: lastOutput, iterations: i + 1, maxIterationsReached: false };
+    }
+
     // Check termination condition — the `until` string appearing in the output
     if (lastOutput.includes(loop.until)) {
       return { output: lastOutput, iterations: i + 1, maxIterationsReached: false };

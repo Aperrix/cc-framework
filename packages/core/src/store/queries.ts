@@ -233,4 +233,95 @@ export class StoreQueries {
       .where(eq(runs.id, id))
       .run();
   }
+
+  // ---- Metrics Operations ----
+
+  /** Aggregated statistics for a workflow — success rate, avg duration, failure hotspots. */
+  getWorkflowStats(workflowName: string): {
+    totalRuns: number;
+    completedRuns: number;
+    failedRuns: number;
+    cancelledRuns: number;
+    successRate: number;
+    avgDurationMs: number | null;
+    nodeFailureRanking: { nodeId: string; failureCount: number }[];
+  } {
+    // Find the workflow
+    const wf = this.db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(eq(workflows.name, workflowName))
+      .get();
+
+    if (!wf) {
+      return {
+        totalRuns: 0,
+        completedRuns: 0,
+        failedRuns: 0,
+        cancelledRuns: 0,
+        successRate: 0,
+        avgDurationMs: null,
+        nodeFailureRanking: [],
+      };
+    }
+
+    // Count runs by status
+    const allRuns = this.db
+      .select({
+        status: runs.status,
+        startedAt: runs.startedAt,
+        finishedAt: runs.finishedAt,
+      })
+      .from(runs)
+      .where(eq(runs.workflowId, wf.id))
+      .all();
+
+    const totalRuns = allRuns.length;
+    const completedRuns = allRuns.filter((r) => r.status === "completed").length;
+    const failedRuns = allRuns.filter((r) => r.status === "failed").length;
+    const cancelledRuns = allRuns.filter((r) => r.status === "cancelled").length;
+    const successRate = totalRuns > 0 ? completedRuns / totalRuns : 0;
+
+    // Average duration of completed runs
+    const completedDurations = allRuns
+      .filter((r) => r.status === "completed" && r.finishedAt)
+      .map((r) => r.finishedAt! - r.startedAt);
+    const avgDurationMs =
+      completedDurations.length > 0
+        ? completedDurations.reduce((a, b) => a + b, 0) / completedDurations.length
+        : null;
+
+    // Node failure ranking — which nodes fail most often across all runs?
+    const allRunRows = this.db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(eq(runs.workflowId, wf.id))
+      .all();
+
+    const failedNodes: Record<string, number> = {};
+    for (const run of allRunRows) {
+      const failedExecs = this.db
+        .select({ nodeId: nodeExecutions.nodeId })
+        .from(nodeExecutions)
+        .where(and(eq(nodeExecutions.runId, run.id), eq(nodeExecutions.status, "failed")))
+        .all();
+      for (const exec of failedExecs) {
+        failedNodes[exec.nodeId] = (failedNodes[exec.nodeId] ?? 0) + 1;
+      }
+    }
+
+    const nodeFailureRanking = Object.entries(failedNodes)
+      .map(([nodeId, failureCount]) => ({ nodeId, failureCount }))
+      .sort((a, b) => b.failureCount - a.failureCount);
+
+    return {
+      totalRuns,
+      completedRuns,
+      failedRuns,
+      cancelledRuns,
+      successRate,
+      avgDurationMs,
+      nodeFailureRanking,
+    };
+  }
 }
