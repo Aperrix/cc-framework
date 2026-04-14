@@ -142,10 +142,37 @@ Each node accepts exactly one of these types (mutually exclusive):
 | Type       | Syntax                                               | Description                                                                                                                                                                                                                                                                  |
 | ---------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `prompt`   | `prompt: "instruction"` or `prompt: path/to/file.md` | AI node — inline string or path to a markdown file. If the value ends with `.md` or starts with `./` / `/`, it is loaded as a file; otherwise treated as inline text. File paths are resolved relative to `.cc-framework/prompts/` first, then relative to the project root. |
-| `bash`     | `bash: "shell script"`                               | Deterministic shell execution (no AI)                                                                                                                                                                                                                                        |
+| `script`   | `script: "command"` or `script: path/to/file.sh`     | Deterministic script execution (no AI). Supports bash (default), bun, uv runtimes via `runtime:` field. File paths detected by extension (.sh/.ts/.py) or prefix (./).                                                                                                       |
 | `loop`     | `loop: { prompt, until, ... }`                       | Iterates until signal (the inner `prompt` follows the same string-or-path rules)                                                                                                                                                                                             |
 | `approval` | `approval: { message }`                              | Pauses for human review                                                                                                                                                                                                                                                      |
 | `cancel`   | `cancel: "reason"`                                   | Stops the workflow                                                                                                                                                                                                                                                           |
+
+### Prompt Execution Modes
+
+Prompt nodes support two execution strategies via the `execution:` field:
+
+| Mode              | Description                                                                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent` (default) | Full agent loop via Claude Agent SDK — the model uses tool calls (Read, Edit, Bash, etc.) to accomplish the task. Best for complex reasoning and multi-step exploration.               |
+| `code`            | Code Mode — the model generates a complete executable script instead of making tool calls. The script is executed in a sandbox via the script runner. Best for batch/repetitive tasks. |
+
+Code Mode is inspired by Cloudflare Code Mode and Anthropic PTC. Key benefits:
+
+- **Reliability**: 30 tool calls at 98% = 54% end-to-end. 1 code gen + 1 execution = 96%.
+- **Token efficiency**: 32-81% fewer tokens on complex tasks (Cloudflare benchmarks).
+- **Native capabilities**: Generated code can use loops, conditionals, date/time, and data structures — things tool calls can't express.
+
+```yaml
+# Agent mode (default) — full tool-calling agent loop
+- id: investigate
+  prompt: "Investigate the bug in auth.py and fix it"
+
+# Code Mode — generate and execute a script
+- id: batch-create
+  prompt: "Create a test file for each module in src/"
+  execution: code
+  runtime: bun
+```
 
 ### Common Node Properties
 
