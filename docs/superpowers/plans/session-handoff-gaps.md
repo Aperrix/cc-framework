@@ -108,9 +108,38 @@ Ajouter la persistence des logs de workflow sur disque en JSONL, comme Archon.
 
 ### 6. Multi-Provider Support (réponse #8)
 
-Créer `packages/providers/` — abstraction multi-LLM pour adversarial coding/review.
+Créer `packages/providers/` — abstraction multi-LLM (Claude + Codex pour le moment, comme Archon).
 
-**Spec:** Session dédiée — c'est un package complet à créer.
+**Spec:**
+
+- Interface `IAgentProvider`: `query()`, `stream()`, capabilities
+- Registre de providers avec `registerProvider()` / `getRegisteredProviders()`
+- Provider Claude: wrapper Claude Agent SDK (existant dans `ai-runner.ts`)
+- Provider Codex: wrapper OpenAI Codex SDK
+- `inferProviderFromModel(model)` — détermine le provider depuis le nom du modèle
+- `isModelCompatible(provider, model)` — valide la compatibilité
+- Utilisé pour adversarial coding (implémentation Claude, review Codex) et review multi-modèle
+
+**Référence:** `/home/aperrix/Documents/PROJECTS/archon/packages/providers/`
+**Package à créer:** `packages/providers/`
+**Fichiers impactés:** `packages/workflows/src/runners/ai-runner.ts` (remplacer l'import direct Claude Agent SDK par l'abstraction provider)
+
+### 7. Per-Node Parsing (réponse #14)
+
+Refactorer `parse-workflow.ts` pour parser les nœuds un par un au lieu de tout d'un coup.
+
+**Spec:**
+
+- Chaque nœud est parsé individuellement avec son propre contexte d'erreur
+- Si un nœud échoue la validation, le message d'erreur inclut le nodeId et le champ fautif
+- Les nœuds valides sont collectés même si d'autres échouent (mode "collect all errors")
+- Résolution des prompt files per-node (async, comme Archon's `loader.ts`)
+- Retourner `{ workflow, errors }` au lieu de throw
+
+**Raison technique (Archon):** Les nœuds `command:` référencent des fichiers markdown externes chargés async. Le parsing per-node permet de rapporter exactement quel nœud a un fichier manquant. Notre approche actuelle throw sur la première erreur et ne montre pas les autres.
+
+**Référence:** `/home/aperrix/Documents/PROJECTS/archon/packages/workflows/src/loader.ts`
+**Fichier à modifier:** `packages/workflows/src/parser/parse-workflow.ts`
 
 ## Outils disponibles
 
