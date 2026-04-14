@@ -7,6 +7,7 @@ interface NodeOutput {
 /** Aliases that map one built-in name to another (e.g. $USER_MESSAGE -> $ARGUMENTS). */
 const BUILTIN_ALIASES: Record<string, string> = {
   USER_MESSAGE: "ARGUMENTS",
+  EXTERNAL_CONTEXT: "CONTEXT",
 };
 
 /**

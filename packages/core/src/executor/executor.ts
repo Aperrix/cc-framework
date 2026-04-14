@@ -8,6 +8,7 @@ import { WorkflowPausedError } from "../runners/approval-runner.ts";
 import { WorkflowCancelledError } from "../runners/cancel-runner.ts";
 import { classifyError, isRetryable } from "../runners/error-classifier.ts";
 import { validateNodeOutput } from "./validate-output.ts";
+import { evaluateCondition, checkTriggerRule } from "./condition-evaluator.ts";
 import { dispatchNode } from "./node-dispatcher.ts";
 import {
   setupIsolation,
@@ -24,74 +25,6 @@ import type { Node } from "../schema/node.ts";
 export interface RunResult {
   runId: string;
   status: RunStatus;
-}
-
-/**
- * Evaluates a `when` condition string against collected node outputs.
- *
- * Supports:
- *   - `$nodeId.output.field == 'value'` (with ==, !=, >, >=, <, <=)
- *   - `$nodeId.output == 'value'`
- *   - Compound conditions with && and || (&& binds tighter than ||)
- *
- * Returns false for invalid/unparseable expressions.
- */
-export function evaluateWhen(
-  condition: string,
-  nodeOutputs: Record<string, { output: string }>,
-): boolean {
-  try {
-    // Split on || first, then && within each group (giving && higher precedence)
-    const orGroups = condition.split("||").map((s) => s.trim());
-    return orGroups.some((group) => {
-      const andClauses = group.split("&&").map((s) => s.trim());
-      return andClauses.every((clause) => evaluateSingleCondition(clause, nodeOutputs));
-    });
-  } catch {
-    return false;
-  }
-}
-
-function evaluateSingleCondition(
-  clause: string,
-  nodeOutputs: Record<string, { output: string }>,
-): boolean {
-  // Pattern: $nodeId.output[.field] OP 'value'
-  const match = clause.match(/^\$(\w+)\.output(?:\.(\w+))?\s*(==|!=|>=?|<=?)\s*'([^']*)'$/);
-  if (!match) return false;
-
-  const [, nodeId, field, operator, expected] = match;
-  const nodeOutput = nodeOutputs[nodeId];
-  if (!nodeOutput) return false;
-
-  let actual: string;
-  if (field) {
-    try {
-      const parsed = JSON.parse(nodeOutput.output);
-      actual = parsed[field] !== undefined ? String(parsed[field]) : "";
-    } catch {
-      return false;
-    }
-  } else {
-    actual = nodeOutput.output.trim();
-  }
-
-  switch (operator) {
-    case "==":
-      return actual === expected;
-    case "!=":
-      return actual !== expected;
-    case ">":
-      return Number(actual) > Number(expected);
-    case ">=":
-      return Number(actual) >= Number(expected);
-    case "<":
-      return Number(actual) < Number(expected);
-    case "<=":
-      return Number(actual) <= Number(expected);
-    default:
-      return false;
-  }
 }
 
 export class WorkflowExecutor {
@@ -168,8 +101,19 @@ export class WorkflowExecutor {
     const artifactsDir = `${effectiveCwd}/.cc-framework/artifacts/${runId}`;
     await mkdir(artifactsDir, { recursive: true });
 
-    const builtins: Record<string, string> = { ARTIFACTS_DIR: artifactsDir };
+    const builtins: Record<string, string> = {
+      ARTIFACTS_DIR: artifactsDir,
+      DOCS_DIR: `${effectiveCwd}/docs`,
+    };
     if (args) builtins.ARGUMENTS = args;
+
+    // Track node terminal statuses for trigger rule evaluation
+    // Pre-populate from completed nodes (important for resume scenarios)
+    const nodeStatuses: Record<string, { completed: boolean; failed: boolean; skipped: boolean }> =
+      {};
+    for (const id of completedNodeIds) {
+      nodeStatuses[id] = { completed: true, failed: false, skipped: false };
+    }
 
     // Session threading: track the last session ID for sequential layers
     let lastSessionId: string | undefined;
@@ -196,6 +140,7 @@ export class WorkflowExecutor {
             runId,
             effectiveCwd,
             nodeOutputs,
+            nodeStatuses,
             builtins,
             // Session threading: pass lastSessionId for sequential layers
             isParallelLayer ? undefined : lastSessionId,
@@ -267,12 +212,31 @@ export class WorkflowExecutor {
     runId: string,
     cwd: string,
     nodeOutputs: Record<string, { output: string }>,
+    nodeStatuses: Record<string, { completed: boolean; failed: boolean; skipped: boolean }>,
     builtins: Record<string, string>,
     resumeSessionId?: string,
   ): Promise<void> {
+    // Check trigger rule against dependency statuses
+    if (node.depends_on.length > 0) {
+      const depStatuses = node.depends_on.map(
+        (depId) => nodeStatuses[depId] ?? { completed: false, failed: false, skipped: false },
+      );
+      if (!checkTriggerRule(node.trigger_rule, depStatuses)) {
+        const execId = this.store.createNodeExecution(runId, nodeId, 1);
+        this.store.updateNodeExecutionStatus(execId, "skipped");
+        this.eventBus.emit("node:skipped", {
+          runId,
+          nodeId,
+          reason: `trigger_rule "${node.trigger_rule}" not satisfied`,
+        });
+        nodeStatuses[nodeId] = { completed: false, failed: false, skipped: true };
+        return;
+      }
+    }
+
     // Evaluate `when` condition — skip node if it returns false
     if (node.when) {
-      const shouldRun = evaluateWhen(node.when, nodeOutputs);
+      const shouldRun = evaluateCondition(node.when, nodeOutputs);
       if (!shouldRun) {
         const execId = this.store.createNodeExecution(runId, nodeId, 1);
         this.store.updateNodeExecutionStatus(execId, "skipped");
@@ -281,6 +245,7 @@ export class WorkflowExecutor {
           nodeId,
           reason: `when condition false: ${node.when}`,
         });
+        nodeStatuses[nodeId] = { completed: false, failed: false, skipped: true };
         return;
       }
     }
@@ -333,6 +298,7 @@ export class WorkflowExecutor {
         this.store.recordEvent(runId, nodeId, "node:complete");
         this.eventBus.emit("node:complete", { runId, nodeId, output, durationMs });
         nodeOutputs[nodeId] = { output };
+        nodeStatuses[nodeId] = { completed: true, failed: false, skipped: false };
         return;
       } catch (error) {
         // WorkflowPausedError and WorkflowCancelledError are NOT retryable
@@ -384,6 +350,7 @@ export class WorkflowExecutor {
           error: errorMessage,
           attempt,
         });
+        nodeStatuses[nodeId] = { completed: false, failed: true, skipped: false };
         throw error;
       }
     }

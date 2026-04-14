@@ -90,6 +90,7 @@ export {
 
 // ---- Executor ----
 export { WorkflowExecutor, type RunResult } from "./executor/executor.ts";
+export { evaluateCondition, checkTriggerRule } from "./executor/condition-evaluator.ts";
 export { validateNodeOutput, type ValidationResult } from "./executor/validate-output.ts";
 export {
   dispatchNode,
