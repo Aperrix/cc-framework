@@ -21,12 +21,12 @@ export default defineConfig({
     },
   },
 
-  // Vitest — test and coverage defaults for all packages
+  // Vitest — test and coverage for all packages in monorepo
   test: {
-    include: ["tests/**/*.test.ts"],
+    include: ["packages/*/tests/**/*.test.ts"],
     coverage: {
-      include: ["src/**/*.ts"],
-      exclude: ["src/index.ts"],
+      include: ["packages/*/src/**/*.ts"],
+      exclude: ["**/index.ts"],
       reporter: ["text", "html"],
     },
   },
