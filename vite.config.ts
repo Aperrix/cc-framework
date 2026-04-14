@@ -26,7 +26,12 @@ export default defineConfig({
     include: ["packages/*/tests/**/*.test.ts"],
     coverage: {
       include: ["packages/*/src/**/*.ts"],
-      exclude: ["**/index.ts"],
+      exclude: [
+        "**/index.ts", // barrel exports
+        "**/runners/ai-runner.ts", // requires Claude Agent SDK
+        "**/runners/code-mode-runner.ts", // requires Claude Agent SDK
+        "**/events/event-bus.ts", // empty class extending EventEmitter
+      ],
       reporter: ["text", "html"],
     },
   },
