@@ -1,27 +1,22 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import BetterSqlite3 from "better-sqlite3";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
-import { ISOLATION_STRATEGIES } from "../schema/common.ts";
+import {
+  WORKFLOW_SOURCES,
+  RUN_STATUSES,
+  NODE_EXECUTION_STATUSES,
+  ISOLATION_STATUSES,
+  ISOLATION_STRATEGIES,
+} from "../constants.ts";
 
-// --- Constants ---
-
-export const WORKFLOW_SOURCES = ["embedded", "custom"] as const;
-export const RUN_STATUSES = [
-  "pending",
-  "running",
-  "paused",
-  "completed",
-  "failed",
-  "cancelled",
-] as const;
-export const NODE_EXECUTION_STATUSES = [
-  "pending",
-  "running",
-  "completed",
-  "failed",
-  "skipped",
-] as const;
-export const ISOLATION_STATUSES = ["active", "cleaned_up", "orphaned"] as const;
+// Re-export constants and types from centralized module
+export { WORKFLOW_SOURCES, RUN_STATUSES, NODE_EXECUTION_STATUSES, ISOLATION_STATUSES };
+export type {
+  RunStatus,
+  NodeExecutionStatus,
+  IsolationStatus,
+  WorkflowSource,
+} from "../constants.ts";
 
 // --- Table definitions ---
 
@@ -117,13 +112,6 @@ export const isolationEnvironments = sqliteTable("isolation_environments", {
   createdAt: integer("created_at", { mode: "number" }).notNull(),
   cleanedAt: integer("cleaned_at", { mode: "number" }),
 });
-
-// --- Status types (derived from constants) ---
-
-export type RunStatus = (typeof RUN_STATUSES)[number];
-export type NodeExecutionStatus = (typeof NODE_EXECUTION_STATUSES)[number];
-export type IsolationStatus = (typeof ISOLATION_STATUSES)[number];
-export type WorkflowSource = (typeof WORKFLOW_SOURCES)[number];
 
 // --- Database types ---
 

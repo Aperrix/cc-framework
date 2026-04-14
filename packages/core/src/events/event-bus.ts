@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { TerminalRunStatus } from "../constants.ts";
 
 export interface NodeStartEvent {
   runId: string;
@@ -34,7 +35,7 @@ export interface RunProgressEvent {
 
 export interface RunDoneEvent {
   runId: string;
-  status: "completed" | "failed" | "cancelled";
+  status: TerminalRunStatus;
   durationMs: number;
 }
 

@@ -1,11 +1,12 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import type { Isolation } from "../schema/common.ts";
+import type { IsolationStrategy } from "../constants.ts";
 
 const execAsync = promisify(exec);
 
 export interface IsolationEnvironment {
-  strategy: "worktree" | "branch";
+  strategy: IsolationStrategy;
   branchName: string;
   worktreePath?: string;
   originalCwd: string;

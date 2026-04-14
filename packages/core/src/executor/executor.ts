@@ -19,7 +19,7 @@ import {
   isCancelNode,
 } from "../schema/node.ts";
 
-export type RunStatus = "completed" | "failed" | "cancelled" | "paused";
+import type { RunStatus } from "../constants.ts";
 
 export interface RunResult {
   runId: string;

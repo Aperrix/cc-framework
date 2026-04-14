@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type { ScriptRuntime } from "../constants.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -23,7 +24,7 @@ function isFilePath(value: string): boolean {
 export async function runScript(
   script: string,
   cwd: string,
-  runtime: "bash" | "bun" | "uv" = "bash",
+  runtime: ScriptRuntime = "bash",
   deps?: string[],
   timeout?: number,
 ): Promise<ScriptResult> {

@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { eq, and, desc } from "drizzle-orm";
-import type { Database, RunStatus, NodeExecutionStatus } from "./database.ts";
+import type { Database } from "./database.ts";
+import type { RunStatus, NodeExecutionStatus, WorkflowSource } from "../constants.ts";
+import { TERMINAL_RUN_STATUSES, TERMINAL_NODE_STATUSES } from "../constants.ts";
 import type { ApprovalContext } from "../runners/approval-runner.ts";
 import { workflows, runs, nodeExecutions, outputs, events } from "./database.ts";
 
 export class StoreQueries {
   constructor(private db: Database) {}
 
-  upsertWorkflow(name: string, source: "embedded" | "custom", yamlHash: string): string {
+  upsertWorkflow(name: string, source: WorkflowSource, yamlHash: string): string {
     const now = Date.now();
     const existing = this.db
       .select({ id: workflows.id })
@@ -56,7 +58,7 @@ export class StoreQueries {
   }
 
   updateRunStatus(id: string, status: RunStatus): void {
-    const finishedAt = ["completed", "failed", "cancelled"].includes(status)
+    const finishedAt = (TERMINAL_RUN_STATUSES as readonly string[]).includes(status)
       ? Date.now()
       : undefined;
     this.db.update(runs).set({ status, finishedAt }).where(eq(runs.id, id)).run();
@@ -83,7 +85,9 @@ export class StoreQueries {
   }
 
   updateNodeExecutionStatus(id: string, status: NodeExecutionStatus, durationMs?: number): void {
-    const finishedAt = ["completed", "failed", "skipped"].includes(status) ? Date.now() : undefined;
+    const finishedAt = (TERMINAL_NODE_STATUSES as readonly string[]).includes(status)
+      ? Date.now()
+      : undefined;
     this.db
       .update(nodeExecutions)
       .set({ status, finishedAt, durationMs })

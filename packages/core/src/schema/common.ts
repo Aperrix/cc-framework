@@ -1,18 +1,21 @@
 import { z } from "zod";
+import {
+  TRIGGER_RULES,
+  RETRY_ERROR_MODES,
+  ISOLATION_STRATEGIES,
+  INPUT_TYPES,
+  EFFORT_LEVELS,
+} from "../constants.ts";
 
-export const TRIGGER_RULES = [
-  "all_success",
-  "one_success",
-  "none_failed_min_one_success",
-  "all_done",
-] as const;
+// Re-export constants and types from centralized module
+export { TRIGGER_RULES, RETRY_ERROR_MODES, ISOLATION_STRATEGIES, INPUT_TYPES, EFFORT_LEVELS };
+export type { TriggerRule, EffortLevel, IsolationStrategy } from "../constants.ts";
+
 export const TriggerRuleSchema = z.enum(TRIGGER_RULES);
-export type TriggerRule = z.infer<typeof TriggerRuleSchema>;
 
 export const WhenConditionSchema = z.string().min(1);
 export type WhenCondition = z.infer<typeof WhenConditionSchema>;
 
-export const RETRY_ERROR_MODES = ["transient", "all"] as const;
 export const RetrySchema = z.object({
   max_attempts: z.number().int().min(1).max(5),
   delay_ms: z.number().int().min(1000).max(60000).optional().default(3000),
@@ -20,15 +23,12 @@ export const RetrySchema = z.object({
 });
 export type Retry = z.infer<typeof RetrySchema>;
 
-export const ISOLATION_STRATEGIES = ["worktree", "branch"] as const;
 export const IsolationSchema = z.object({
   strategy: z.enum(ISOLATION_STRATEGIES),
   branch_prefix: z.string().optional().default("ccf/"),
 });
 export type Isolation = z.infer<typeof IsolationSchema>;
-export type IsolationStrategy = (typeof ISOLATION_STRATEGIES)[number];
 
-export const INPUT_TYPES = ["string", "number", "boolean"] as const;
 export const InputDefinitionSchema = z.object({
   type: z.enum(INPUT_TYPES),
   required: z.boolean().optional().default(false),
@@ -53,9 +53,7 @@ export const ThinkingConfigSchema = z.union([
 ]);
 export type ThinkingConfig = z.infer<typeof ThinkingConfigSchema>;
 
-export const EFFORT_LEVELS = ["low", "medium", "high", "max"] as const;
 export const EffortLevelSchema = z.enum(EFFORT_LEVELS);
-export type EffortLevel = z.infer<typeof EffortLevelSchema>;
 
 export const SandboxSchema = z.object({
   enabled: z.boolean().optional().default(false),
@@ -76,6 +74,7 @@ export const SandboxSchema = z.object({
 export type Sandbox = z.infer<typeof SandboxSchema>;
 
 // Type guard for trigger rules
+import type { TriggerRule } from "../constants.ts";
 export function isTriggerRule(value: unknown): value is TriggerRule {
   return typeof value === "string" && TRIGGER_RULES.includes(value as TriggerRule);
 }

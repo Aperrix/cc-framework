@@ -9,13 +9,11 @@ import {
   EffortLevelSchema,
 } from "./common.ts";
 
-// --- Constants ---
+// Re-export constants and types from centralized module
+export { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
+export type { ContextMode, ScriptRuntime } from "../constants.ts";
 
-export const CONTEXT_MODES = ["fresh", "shared"] as const;
-export type ContextMode = (typeof CONTEXT_MODES)[number];
-
-export const SCRIPT_RUNTIMES = ["bash", "bun", "uv"] as const;
-export type ScriptRuntime = (typeof SCRIPT_RUNTIMES)[number];
+import { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
 
 // --- Sub-schemas ---
 
