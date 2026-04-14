@@ -4,28 +4,22 @@ import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 
 import { buildDag } from "../dag/build-dag.ts";
-import { substituteVariables } from "../variables/substitute.ts";
-import { runScript } from "../runners/script-runner.ts";
-import { runAi } from "../runners/ai-runner.ts";
-import { runCodeMode } from "../runners/code-mode-runner.ts";
-import { runLoop } from "../runners/loop-runner.ts";
-import { requestApproval, WorkflowPausedError } from "../runners/approval-runner.ts";
-import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
+import { WorkflowPausedError } from "../runners/approval-runner.ts";
+import { WorkflowCancelledError } from "../runners/cancel-runner.ts";
 import { classifyError, isRetryable } from "../runners/error-classifier.ts";
 import { validateNodeOutput } from "./validate-output.ts";
+import { dispatchNode } from "./node-dispatcher.ts";
+import {
+  setupIsolation,
+  cleanupIsolation,
+  type IsolationEnvironment,
+} from "../isolation/isolation.ts";
 
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import type { RunStatus } from "../constants.ts";
-import {
-  type Node,
-  isPromptNode,
-  isScriptNode,
-  isLoopNode,
-  isApprovalNode,
-  isCancelNode,
-} from "../schema/node.ts";
+import type { Node } from "../schema/node.ts";
 
 export interface RunResult {
   runId: string;
@@ -161,7 +155,17 @@ export class WorkflowExecutor {
       nodeMap.set(node.id, node);
     }
 
-    const artifactsDir = `${cwd}/.cc-framework/artifacts/${runId}`;
+    // Setup isolation environment if configured
+    let isolationEnv: IsolationEnvironment | undefined;
+    let effectiveCwd = cwd;
+
+    if (workflow.isolation) {
+      isolationEnv = await setupIsolation(workflow.isolation, runId, cwd);
+      effectiveCwd = isolationEnv.workingDirectory;
+    }
+
+    // Use effectiveCwd instead of cwd for artifacts and node execution
+    const artifactsDir = `${effectiveCwd}/.cc-framework/artifacts/${runId}`;
     await mkdir(artifactsDir, { recursive: true });
 
     const builtins: Record<string, string> = { ARTIFACTS_DIR: artifactsDir };
@@ -190,7 +194,7 @@ export class WorkflowExecutor {
             nodeMap.get(nodeId)!,
             workflow,
             runId,
-            cwd,
+            effectiveCwd,
             nodeOutputs,
             builtins,
             // Session threading: pass lastSessionId for sequential layers
@@ -239,6 +243,11 @@ export class WorkflowExecutor {
       } else {
         finalStatus = "failed";
       }
+    } finally {
+      // Cleanup isolation environment
+      if (isolationEnv) {
+        await cleanupIsolation(isolationEnv).catch(() => {});
+      }
     }
 
     // Finalize run status and emit completion event
@@ -286,53 +295,27 @@ export class WorkflowExecutor {
       this.eventBus.emit("node:start", { runId, nodeId, attempt });
 
       try {
-        let output = "";
+        const result = await dispatchNode(node, {
+          workflow,
+          runId,
+          nodeId,
+          cwd,
+          builtins,
+          nodeOutputs,
+          resumeSessionId,
+          eventBus: this.eventBus,
+        });
 
-        if (isScriptNode(node)) {
-          const command = substituteVariables(node.script, builtins, nodeOutputs);
-          const result = await runScript(
-            command,
-            cwd,
-            node.runtime ?? "bash",
-            node.deps,
-            node.timeout,
-          );
-          output = result.output;
-          if (result.exitCode !== 0) {
-            throw new Error(`Script failed with exit code ${result.exitCode}: ${output}`);
-          }
-        } else if (isPromptNode(node)) {
-          const prompt = substituteVariables(node.prompt, builtins, nodeOutputs);
+        const output = result.output;
 
-          if (node.execution === "code") {
-            // Code Mode: LLM generates a script, we execute it
-            const result = await runCodeMode(prompt, node, workflow, cwd, builtins);
-            output = result.output;
-            // Store generated code as an event for audit/debugging
-            this.store.recordEvent(runId, nodeId, "node:code_generated", result.generatedCode);
-            if (result.error) {
-              throw new Error(result.error);
-            }
-          } else {
-            // Agent Mode (default): full agent loop with tool calls
-            const result = await runAi(prompt, node, workflow, cwd, resumeSessionId);
-            output = result.output;
-            // Store session ID for threading to the next sequential node
-            this.lastNodeSessionId = result.sessionId;
-            // If the SDK returned an error, throw it (retry logic will handle it)
-            // but the partial output is already captured in `output` for potential use
-            if (result.error) {
-              throw new Error(`AI node error (partial output preserved): ${result.error}`);
-            }
-          }
-        } else if (isLoopNode(node)) {
-          const result = await runLoop(node, workflow, cwd, runAi);
-          output = result.output;
-        } else if (isApprovalNode(node)) {
-          requestApproval(runId, nodeId, node.approval, this.eventBus);
-        } else if (isCancelNode(node)) {
-          const reason = substituteVariables(node.cancel, builtins, nodeOutputs);
-          runCancel(reason);
+        // Store session ID for threading
+        if (result.sessionId) {
+          this.lastNodeSessionId = result.sessionId;
+        }
+
+        // Store generated code for audit
+        if (result.generatedCode) {
+          this.store.recordEvent(runId, nodeId, "node:code_generated", result.generatedCode);
         }
 
         // Validate structured output against declared schema

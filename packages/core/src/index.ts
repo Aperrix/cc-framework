@@ -91,6 +91,11 @@ export {
 // ---- Executor ----
 export { WorkflowExecutor, type RunResult } from "./executor/executor.ts";
 export { validateNodeOutput, type ValidationResult } from "./executor/validate-output.ts";
+export {
+  dispatchNode,
+  type DispatchResult,
+  type DispatchContext,
+} from "./executor/node-dispatcher.ts";
 
 // ---- Events ----
 export {
