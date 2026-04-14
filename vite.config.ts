@@ -21,6 +21,16 @@ export default defineConfig({
     },
   },
 
+  // Vitest — test and coverage defaults for all packages
+  test: {
+    include: ["tests/**/*.test.ts"],
+    coverage: {
+      include: ["src/**/*.ts"],
+      exclude: ["src/index.ts"],
+      reporter: ["text", "html"],
+    },
+  },
+
   // Vite Task — monorepo task caching
   run: {
     cache: true,
