@@ -39,6 +39,8 @@ describe("commandStatus", () => {
     store.createRunInSession(wfId, sessionId);
     store.createRunInSession(wfId, sessionId);
     const result = await commandStatus(undefined, store, sessionId);
-    expect(result).toContain("Run");
+    // Each run produces a "Run <id>" line — verify both runs appear
+    const runLines = result.split("\n").filter((line) => line.includes("Run "));
+    expect(runLines).toHaveLength(2);
   });
 });

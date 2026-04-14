@@ -13,16 +13,18 @@ describe("requestApproval", () => {
 
     expect(() => requestApproval("run-1", "review", config, eventBus)).toThrow(WorkflowPausedError);
 
+    let error: WorkflowPausedError | undefined;
     try {
       requestApproval("run-1", "review", config, eventBus);
+      expect(true).toBe(false); // Should have thrown
     } catch (e) {
-      expect(e).toBeInstanceOf(WorkflowPausedError);
-      const err = e as WorkflowPausedError;
-      expect(err.nodeId).toBe("review");
-      expect(err.approvalContext.message).toBe("Review this");
-      expect(err.approvalContext.captureResponse).toBe(true);
-      expect(err.approvalContext.rejectionCount).toBe(0);
+      error = e as WorkflowPausedError;
     }
+    expect(error).toBeInstanceOf(WorkflowPausedError);
+    expect(error!.nodeId).toBe("review");
+    expect(error!.approvalContext.message).toBe("Review this");
+    expect(error!.approvalContext.captureResponse).toBe(true);
+    expect(error!.approvalContext.rejectionCount).toBe(0);
   });
 
   it("emits approval:request event before throwing", () => {
@@ -32,6 +34,7 @@ describe("requestApproval", () => {
 
     try {
       requestApproval("run-1", "gate", { message: "Approve?", capture_response: false }, eventBus);
+      expect(true).toBe(false); // Should have thrown
     } catch {
       /* expected */
     }
@@ -43,6 +46,7 @@ describe("requestApproval", () => {
 
   it("includes on_reject config in context", () => {
     const eventBus = new WorkflowEventBus();
+    let error: WorkflowPausedError | undefined;
     try {
       requestApproval(
         "run-1",
@@ -54,25 +58,29 @@ describe("requestApproval", () => {
         },
         eventBus,
       );
+      expect(true).toBe(false); // Should have thrown
     } catch (e) {
-      const err = e as WorkflowPausedError;
-      expect(err.approvalContext.onRejectPrompt).toBe("Fix: $REJECTION_REASON");
-      expect(err.approvalContext.onRejectMaxAttempts).toBe(5);
+      error = e as WorkflowPausedError;
     }
+    expect(error!.approvalContext.onRejectPrompt).toBe("Fix: $REJECTION_REASON");
+    expect(error!.approvalContext.onRejectMaxAttempts).toBe(5);
   });
 
   it("defaults captureResponse to false", () => {
     const eventBus = new WorkflowEventBus();
+    let error: WorkflowPausedError | undefined;
     try {
       requestApproval("run-1", "gate", { message: "Check", capture_response: false }, eventBus);
+      expect(true).toBe(false); // Should have thrown
     } catch (e) {
-      const err = e as WorkflowPausedError;
-      expect(err.approvalContext.captureResponse).toBe(false);
+      error = e as WorkflowPausedError;
     }
+    expect(error!.approvalContext.captureResponse).toBe(false);
   });
 
   it("defaults onRejectMaxAttempts to 3 when on_reject is provided", () => {
     const eventBus = new WorkflowEventBus();
+    let error: WorkflowPausedError | undefined;
     try {
       requestApproval(
         "run-1",
@@ -84,10 +92,11 @@ describe("requestApproval", () => {
         },
         eventBus,
       );
+      expect(true).toBe(false); // Should have thrown
     } catch (e) {
-      const err = e as WorkflowPausedError;
-      expect(err.approvalContext.onRejectMaxAttempts).toBe(3);
+      error = e as WorkflowPausedError;
     }
+    expect(error!.approvalContext.onRejectMaxAttempts).toBe(3);
   });
 });
 

@@ -38,9 +38,9 @@ describe("Integration: YAML → Parse → Execute", () => {
     db?.close();
   });
 
-  it("parses and executes a minimal workflow end-to-end", async () => {
+  it("parses and executes a sequential workflow end-to-end", async () => {
     const workflow = await parseWorkflow(
-      join(fixturesDir, "minimal.yaml"),
+      join(fixturesDir, "e2e-sequential.yaml"),
       makeConfig(fixturesDir),
     );
 
@@ -53,13 +53,6 @@ describe("Integration: YAML → Parse → Execute", () => {
     eventBus.on("node:complete", (e) => events.push(`complete:${e.nodeId}`));
     eventBus.on("run:done", (e) => events.push(`done:${e.status}`));
 
-    // Override the prompt node with a script node for testing (no API key needed)
-    workflow.nodes[0] = {
-      ...workflow.nodes[0],
-      prompt: undefined,
-      script: "echo 'Hello from integration test'",
-    } as any;
-
     const executor = new WorkflowExecutor(store, eventBus);
     const result = await executor.run(workflow, "/tmp");
 
@@ -71,7 +64,7 @@ describe("Integration: YAML → Parse → Execute", () => {
 
   it("parses and executes a parallel workflow", async () => {
     const workflow = await parseWorkflow(
-      join(fixturesDir, "parallel.yaml"),
+      join(fixturesDir, "e2e-parallel.yaml"),
       makeConfig(fixturesDir),
     );
 
@@ -79,20 +72,14 @@ describe("Integration: YAML → Parse → Execute", () => {
     const store = new StoreQueries(db);
     const eventBus = new WorkflowEventBus();
 
-    // Replace AI nodes with script nodes for testing
-    for (const node of workflow.nodes) {
-      (node as any).prompt = undefined;
-      (node as any).script = `echo '${node.id} done'`;
-    }
-
     const executor = new WorkflowExecutor(store, eventBus);
     const result = await executor.run(workflow, "/tmp");
 
     expect(result.status).toBe("completed");
     const outputs = store.getNodeOutputs(result.runId);
-    expect(outputs.scope).toBeDefined();
-    expect(outputs["review-a"]).toBeDefined();
-    expect(outputs["review-b"]).toBeDefined();
-    expect(outputs.synthesize).toBeDefined();
+    expect(outputs.setup).toBeDefined();
+    expect(outputs["worker-a"]).toBeDefined();
+    expect(outputs["worker-b"]).toBeDefined();
+    expect(outputs.aggregate).toBeDefined();
   });
 });

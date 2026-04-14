@@ -2,21 +2,25 @@ import { describe, expect, it } from "vite-plus/test";
 import { generateWorkflowJsonSchema } from "../../src/schema/generate-json-schema.ts";
 
 describe("generateWorkflowJsonSchema", () => {
-  it("produces a valid JSON Schema object", () => {
+  it("produces a JSON Schema with correct structure", () => {
     const schema = generateWorkflowJsonSchema() as Record<string, unknown>;
-    expect(schema).toBeDefined();
-    expect(typeof schema).toBe("object");
+    // Must be a valid JSON Schema object
+    expect(schema).toHaveProperty("type");
+    expect(schema).toHaveProperty("properties");
+    expect(schema).toHaveProperty("required");
   });
 
-  it("includes node and workflow properties", () => {
+  it("includes workflow-level properties (name, nodes)", () => {
     const schema = generateWorkflowJsonSchema() as Record<string, unknown>;
-    const serialized = JSON.stringify(schema);
-    expect(serialized).toContain("name");
-    expect(serialized).toContain("nodes");
+    const props = schema.properties as Record<string, unknown>;
+    expect(props).toHaveProperty("name");
+    expect(props).toHaveProperty("nodes");
+    expect(props).toHaveProperty("description");
+    expect(props).toHaveProperty("model");
   });
 
-  it("targets draft-2020-12", () => {
+  it("targets JSON Schema draft-2020-12", () => {
     const schema = generateWorkflowJsonSchema() as Record<string, unknown>;
-    expect(schema.$schema).toContain("2020-12");
+    expect(String(schema.$schema)).toContain("2020-12");
   });
 });

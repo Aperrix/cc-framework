@@ -72,6 +72,18 @@ describe("dispatchNode", () => {
     await expect(dispatchNode(node, makeContext())).rejects.toThrow(/Unknown node type/);
   });
 
+  it("dispatches cancel nodes by throwing WorkflowCancelledError", async () => {
+    const { WorkflowCancelledError } = await import("../../src/runners/cancel-runner.ts");
+    const node = {
+      id: "c",
+      cancel: "stopped",
+      depends_on: [],
+      trigger_rule: "all_success",
+      context: "fresh",
+    } as Node;
+    await expect(dispatchNode(node, makeContext())).rejects.toThrow(WorkflowCancelledError);
+  });
+
   it("substitutes node output references in script", async () => {
     const node = {
       id: "s",

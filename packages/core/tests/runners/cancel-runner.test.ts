@@ -2,33 +2,22 @@ import { describe, expect, it } from "vite-plus/test";
 import { runCancel, WorkflowCancelledError } from "../../src/runners/cancel-runner.ts";
 
 describe("runCancel", () => {
-  it("throws WorkflowCancelledError with reason", () => {
+  it("throws WorkflowCancelledError with the given reason", () => {
     expect(() => runCancel("Merge conflicts detected")).toThrow(WorkflowCancelledError);
-    expect(() => runCancel("Merge conflicts detected")).toThrow("Merge conflicts detected");
+    expect(() => runCancel("Merge conflicts detected")).toThrow(
+      "Workflow cancelled: Merge conflicts detected",
+    );
   });
 
-  it("error has the correct reason property", () => {
-    try {
-      runCancel("test reason");
-    } catch (e) {
-      expect(e).toBeInstanceOf(WorkflowCancelledError);
-      expect((e as WorkflowCancelledError).reason).toBe("test reason");
-    }
-  });
-
-  it("error has the correct name", () => {
-    try {
-      runCancel("any reason");
-    } catch (e) {
-      expect((e as WorkflowCancelledError).name).toBe("WorkflowCancelledError");
-    }
-  });
-
-  it("error message includes the reason", () => {
+  it("exposes the reason on the error instance", () => {
+    let caught: WorkflowCancelledError | undefined;
     try {
       runCancel("budget exceeded");
+      expect(true).toBe(false); // Should have thrown
     } catch (e) {
-      expect((e as Error).message).toBe("Workflow cancelled: budget exceeded");
+      caught = e as WorkflowCancelledError;
     }
+    expect(caught).toBeInstanceOf(WorkflowCancelledError);
+    expect(caught!.reason).toBe("budget exceeded");
   });
 });
