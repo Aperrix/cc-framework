@@ -8,6 +8,19 @@
         "vite-plus": "catalog:",
       },
     },
+    "packages/cli": {
+      "name": "@cc-framework/cli",
+      "version": "0.0.0",
+      "bin": {
+        "ccf": "./src/index.ts",
+      },
+      "dependencies": {
+        "@cc-framework/core": "workspace:*",
+      },
+      "devDependencies": {
+        "vite-plus": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@cc-framework/core",
       "version": "0.0.0",
@@ -39,6 +52,8 @@
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.81.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-D4K5PvEV6wPiRtVlVsJHIUhHAmOZ6IT/I9rKlTf84gR7GyyAurPJK7z9BOf/AZqC5d1DhYQGJNKRmV+q8dGhgw=="],
 
     "@babel/runtime": ["@babel/runtime@7.29.2", "", {}, "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g=="],
+
+    "@cc-framework/cli": ["@cc-framework/cli@workspace:packages/cli"],
 
     "@cc-framework/core": ["@cc-framework/core@workspace:packages/core"],
 
