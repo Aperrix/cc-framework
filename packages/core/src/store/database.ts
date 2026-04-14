@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import BetterSqlite3 from "better-sqlite3";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+import { ISOLATION_STRATEGIES } from "../schema/common.ts";
 
 // --- Constants ---
 
@@ -109,7 +110,7 @@ export const isolationEnvironments = sqliteTable("isolation_environments", {
   runId: text("run_id")
     .notNull()
     .references(() => runs.id),
-  strategy: text("strategy", { enum: ["worktree", "branch"] }).notNull(),
+  strategy: text("strategy", { enum: [...ISOLATION_STRATEGIES] }).notNull(),
   branchName: text("branch_name").notNull(),
   worktreePath: text("worktree_path"),
   status: text("status", { enum: [...ISOLATION_STATUSES] }).notNull(),
