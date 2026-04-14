@@ -57,3 +57,45 @@ Optional `risk: "low" | "medium" | "high"` on nodes. High-risk nodes auto-requir
 ### 6. Schema Validation Pipeline
 
 Type-safe data flow between nodes — declare input expectations per node, validate at runtime that upstream outputs match downstream expectations.
+
+### 7. Code Mode Execution (`execution: "code"`)
+
+> Source: Cloudflare Code Mode (Rita Kozlov, Kenton Varda), Anthropic Programmatic Tool Calling (PTC)
+
+Instead of the agent loop (many tool call round-trips), LLM generates a complete script that handles iteration internally. Executed in a sandbox via the script runner.
+
+**Why:** LLMs are vastly better at code generation than tool calling. Code is a native capability (trained on all of GitHub), tool calling is fine-tuned behavior. The reliability and token impact is dramatic:
+
+- 30 tool calls at 98% = 54% end-to-end. 1 code gen + 1 execution = 96%.
+- Token savings: 32-81% depending on task complexity (Cloudflare benchmarks).
+
+**How:** New `execution: "code"` field on prompt nodes. The framework:
+
+1. Reads available tools and converts them to TypeScript/Python function signatures
+2. Asks the LLM to generate a complete script (not tool calls)
+3. Executes via the script runner (bash/bun/uv)
+4. Captures the result
+
+```yaml
+- id: batch-create
+  prompt: "Create events for every day in January 2026"
+  execution: code
+  runtime: bun
+```
+
+**Interim:** The existing DAG already supports a manual Code Mode pattern:
+
+```yaml
+- id: generate
+  prompt: "Generate a script that does X. Output ONLY executable code."
+- id: execute
+  script: $generate.output
+  runtime: bun
+  depends_on: [generate]
+```
+
+**Related:** Anthropic's PTC (`allowed_callers: ["code_execution_20260120"]`) achieves similar results at the API level. Could be enabled per-node via a flag in the AI runner.
+
+### 8. Anthropic PTC Integration
+
+Enable Programmatic Tool Calling on AI nodes that declare many tools or are expected to make batch operations. Pass `allowed_callers: ["code_execution_20260120"]` on tool definitions so Claude generates code that calls tools from within the code execution container, eliminating per-call round trips.
