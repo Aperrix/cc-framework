@@ -138,6 +138,55 @@ describe("WorkflowExecutor", () => {
     expect(outputs.complex).toBeUndefined();
   });
 
+  it("resumes a failed run from the last checkpoint", async () => {
+    const stateFile = `/tmp/ccf-resume-test-${Date.now()}`;
+
+    const workflow: Workflow = {
+      name: "test-resume",
+      interactive: false,
+      nodes: [
+        {
+          id: "step1",
+          script: "echo step1-done",
+          depends_on: [],
+          trigger_rule: "all_success",
+          context: "fresh",
+        },
+        {
+          id: "step2",
+          script: `if [ ! -f "${stateFile}" ]; then touch "${stateFile}" && exit 1; else echo step2-done; fi`,
+          depends_on: ["step1"],
+          trigger_rule: "all_success",
+          context: "fresh",
+        },
+      ],
+    } as Workflow;
+
+    const executor = new WorkflowExecutor(store, eventBus);
+
+    // First run: step1 succeeds, step2 fails
+    const result1 = await executor.run(workflow, "/tmp");
+    expect(result1.status).toBe("failed");
+
+    // Verify step1 completed
+    const outputs1 = store.getNodeOutputs(result1.runId);
+    expect(outputs1.step1.output.trim()).toBe("step1-done");
+
+    // Resume: step1 is skipped (already completed), step2 succeeds
+    const result2 = await executor.resume(workflow, result1.runId, "/tmp");
+    expect(result2.status).toBe("completed");
+
+    // Verify step2 now completed
+    const outputs2 = store.getNodeOutputs(result1.runId);
+    expect(outputs2.step2.output.trim()).toBe("step2-done");
+
+    // Cleanup
+    const { unlinkSync } = await import("node:fs");
+    try {
+      unlinkSync(stateFile);
+    } catch {}
+  });
+
   it("emits events during execution", async () => {
     const events: string[] = [];
     eventBus.on("node:start", (e) => events.push(`start:${e.nodeId}`));

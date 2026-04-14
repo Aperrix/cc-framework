@@ -10,6 +10,7 @@ import { runAi } from "../runners/ai-runner.ts";
 import { runLoop } from "../runners/loop-runner.ts";
 import { requestApproval, WorkflowPausedError } from "../runners/approval-runner.ts";
 import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
+import { classifyError, isRetryable } from "../runners/error-classifier.ts";
 
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
@@ -98,21 +99,60 @@ function evaluateSingleCondition(
 }
 
 export class WorkflowExecutor {
+  /** Session ID from the last executed node — used for session threading in sequential layers. */
+  private lastNodeSessionId: string | undefined;
+
   constructor(
     private store: StoreQueries,
     private eventBus: WorkflowEventBus,
   ) {}
 
   async run(workflow: Workflow, cwd: string, args?: string): Promise<RunResult> {
-    const startTime = Date.now();
-
     // Phase 1: Persist workflow and create run record
     const yamlHash = createHash("sha256").update(JSON.stringify(workflow)).digest("hex");
     const workflowId = this.store.upsertWorkflow(workflow.name, "embedded", yamlHash);
     const runId = this.store.createRun(workflowId, args);
     this.store.updateRunStatus(runId, "running");
 
-    // Phase 2: Build DAG layers and prepare execution context
+    return this.executeFromLayers(
+      workflow,
+      runId,
+      cwd,
+      args,
+      {}, // No prior node outputs
+      new Set(), // No completed nodes
+    );
+  }
+
+  /**
+   * Resume a paused or failed run from the last checkpoint.
+   * Completed nodes are skipped — execution continues from the first incomplete layer.
+   */
+  async resume(workflow: Workflow, runId: string, cwd: string, args?: string): Promise<RunResult> {
+    // Load already-completed node outputs
+    const completedNodeIds = this.store.getCompletedNodeIds(runId);
+    const nodeOutputs = this.store.getNodeOutputs(runId);
+
+    this.store.updateRunStatus(runId, "running");
+
+    // Re-run with prior state
+    return this.executeFromLayers(workflow, runId, cwd, args, nodeOutputs, completedNodeIds);
+  }
+
+  /**
+   * Shared layer-execution engine used by both `run()` and `resume()`.
+   * Walks DAG layers in order, skipping already-completed nodes and threading
+   * session IDs through sequential (single-node) layers.
+   */
+  private async executeFromLayers(
+    workflow: Workflow,
+    runId: string,
+    cwd: string,
+    args: string | undefined,
+    nodeOutputs: Record<string, { output: string }>,
+    completedNodeIds: Set<string>,
+  ): Promise<RunResult> {
+    const startTime = Date.now();
     const layers = buildDag(workflow.nodes);
     const nodeMap = new Map<string, Node>();
     for (const node of workflow.nodes) {
@@ -122,16 +162,27 @@ export class WorkflowExecutor {
     const artifactsDir = `${cwd}/.cc-framework/artifacts/${runId}`;
     await mkdir(artifactsDir, { recursive: true });
 
-    const nodeOutputs: Record<string, { output: string }> = {};
     const builtins: Record<string, string> = { ARTIFACTS_DIR: artifactsDir };
     if (args) builtins.ARGUMENTS = args;
+
+    // Session threading: track the last session ID for sequential layers
+    let lastSessionId: string | undefined;
 
     let finalStatus: RunStatus = "completed";
 
     try {
-      // Phase 3: Execute layer by layer (nodes within a layer run in parallel)
       for (const layer of layers) {
-        const layerPromises = layer.nodeIds.map((nodeId) =>
+        // Skip layers where all nodes are already completed (checkpoint/resume)
+        const pendingNodeIds = layer.nodeIds.filter((id) => !completedNodeIds.has(id));
+        if (pendingNodeIds.length === 0) continue;
+
+        // Session threading: parallel layers (2+ nodes) break the session chain
+        const isParallelLayer = pendingNodeIds.length > 1;
+        if (isParallelLayer) {
+          lastSessionId = undefined;
+        }
+
+        const layerPromises = pendingNodeIds.map((nodeId) =>
           this.executeNode(
             nodeId,
             nodeMap.get(nodeId)!,
@@ -140,6 +191,8 @@ export class WorkflowExecutor {
             cwd,
             nodeOutputs,
             builtins,
+            // Session threading: pass lastSessionId for sequential layers
+            isParallelLayer ? undefined : lastSessionId,
           ),
         );
 
@@ -159,6 +212,18 @@ export class WorkflowExecutor {
 
         if (finalStatus !== "completed") break;
 
+        // Session threading: capture session ID from sequential single-node layers
+        if (!isParallelLayer && pendingNodeIds.length === 1) {
+          const nodeId = pendingNodeIds[0];
+          const node = nodeMap.get(nodeId)!;
+          // Only thread if node context is not "fresh"
+          if (node.context !== "fresh") {
+            lastSessionId = this.lastNodeSessionId;
+          } else {
+            lastSessionId = undefined;
+          }
+        }
+
         // Check run status between layers (supports external cancellation/pause)
         const currentStatus = this.store.getRunStatus(runId);
         if (currentStatus === "cancelled" || currentStatus === "paused") {
@@ -174,7 +239,7 @@ export class WorkflowExecutor {
       }
     }
 
-    // Phase 4: Finalize run status and emit completion event
+    // Finalize run status and emit completion event
     this.store.updateRunStatus(runId, finalStatus);
     const durationMs = Date.now() - startTime;
     if (finalStatus !== "paused") {
@@ -192,6 +257,7 @@ export class WorkflowExecutor {
     cwd: string,
     nodeOutputs: Record<string, { output: string }>,
     builtins: Record<string, string>,
+    resumeSessionId?: string,
   ): Promise<void> {
     // Evaluate `when` condition — skip node if it returns false
     if (node.when) {
@@ -208,61 +274,107 @@ export class WorkflowExecutor {
       }
     }
 
-    const startTime = Date.now();
-    const execId = this.store.createNodeExecution(runId, nodeId, 1);
-    this.store.updateNodeExecutionStatus(execId, "running");
-    this.eventBus.emit("node:start", { runId, nodeId, attempt: 1 });
+    const retryConfig = node.retry;
+    const maxAttempts = retryConfig ? retryConfig.max_attempts + 1 : 1;
 
-    try {
-      let output = "";
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const startTime = Date.now();
+      const execId = this.store.createNodeExecution(runId, nodeId, attempt);
+      this.store.updateNodeExecutionStatus(execId, "running");
+      this.eventBus.emit("node:start", { runId, nodeId, attempt });
 
-      if (isScriptNode(node)) {
-        const command = substituteVariables(node.script, builtins, nodeOutputs);
-        const result = await runScript(
-          command,
-          cwd,
-          node.runtime ?? "bash",
-          node.deps,
-          node.timeout,
-        );
-        output = result.output;
-        if (result.exitCode !== 0) {
-          throw new Error(`Script failed with exit code ${result.exitCode}: ${output}`);
+      try {
+        let output = "";
+
+        if (isScriptNode(node)) {
+          const command = substituteVariables(node.script, builtins, nodeOutputs);
+          const result = await runScript(
+            command,
+            cwd,
+            node.runtime ?? "bash",
+            node.deps,
+            node.timeout,
+          );
+          output = result.output;
+          if (result.exitCode !== 0) {
+            throw new Error(`Script failed with exit code ${result.exitCode}: ${output}`);
+          }
+        } else if (isPromptNode(node)) {
+          const prompt = substituteVariables(node.prompt, builtins, nodeOutputs);
+          const result = await runAi(prompt, node, workflow, cwd, resumeSessionId);
+          output = result.output;
+          // Store session ID for threading to the next sequential node
+          this.lastNodeSessionId = result.sessionId;
+        } else if (isLoopNode(node)) {
+          const result = await runLoop(node, workflow, cwd, runAi);
+          output = result.output;
+        } else if (isApprovalNode(node)) {
+          requestApproval(runId, nodeId, node.approval, this.eventBus);
+        } else if (isCancelNode(node)) {
+          const reason = substituteVariables(node.cancel, builtins, nodeOutputs);
+          runCancel(reason);
         }
-      } else if (isPromptNode(node)) {
-        const prompt = substituteVariables(node.prompt, builtins, nodeOutputs);
-        const result = await runAi(prompt, node, workflow, cwd);
-        output = result.output;
-      } else if (isLoopNode(node)) {
-        const result = await runLoop(node, workflow, cwd, runAi);
-        output = result.output;
-      } else if (isApprovalNode(node)) {
-        requestApproval(runId, nodeId, node.approval, this.eventBus);
-      } else if (isCancelNode(node)) {
-        const reason = substituteVariables(node.cancel, builtins, nodeOutputs);
-        runCancel(reason);
-      }
 
-      const durationMs = Date.now() - startTime;
-      this.store.updateNodeExecutionStatus(execId, "completed", durationMs);
-      this.store.saveOutput(execId, output);
-      this.store.recordEvent(runId, nodeId, "node:complete");
-      this.eventBus.emit("node:complete", { runId, nodeId, output, durationMs });
+        // Success — record and return
+        const durationMs = Date.now() - startTime;
+        this.store.updateNodeExecutionStatus(execId, "completed", durationMs);
+        this.store.saveOutput(execId, output);
+        this.store.recordEvent(runId, nodeId, "node:complete");
+        this.eventBus.emit("node:complete", { runId, nodeId, output, durationMs });
+        nodeOutputs[nodeId] = { output };
+        return;
+      } catch (error) {
+        // WorkflowPausedError and WorkflowCancelledError are NOT retryable
+        if (error instanceof WorkflowPausedError) {
+          this.store.pauseRun(runId, error.approvalContext);
+          throw error;
+        }
+        if (error instanceof WorkflowCancelledError) {
+          throw error;
+        }
 
-      // Store output for downstream variable substitution
-      nodeOutputs[nodeId] = { output };
-    } catch (error) {
-      if (error instanceof WorkflowPausedError) {
-        this.store.pauseRun(runId, error.approvalContext);
+        const durationMs = Date.now() - startTime;
+        this.store.updateNodeExecutionStatus(execId, "failed", durationMs);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        // Should we retry?
+        if (retryConfig && attempt < maxAttempts) {
+          const classified = classifyError(error);
+          const scope = retryConfig.on_error ?? "transient";
+
+          if (isRetryable(classified, scope)) {
+            const delay = (retryConfig.delay_ms ?? 3000) * Math.pow(2, attempt - 1);
+            this.store.recordEvent(
+              runId,
+              nodeId,
+              "node:retry",
+              JSON.stringify({
+                attempt,
+                delay,
+                severity: classified.severity,
+              }),
+            );
+            this.eventBus.emit("node:error", {
+              runId,
+              nodeId,
+              error: `Retrying (attempt ${attempt}/${maxAttempts}): ${errorMessage}`,
+              attempt,
+            });
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+
+        // Not retryable or attempts exhausted
+        this.store.recordEvent(runId, nodeId, "node:error", errorMessage);
+        this.eventBus.emit("node:error", {
+          runId,
+          nodeId,
+          error: errorMessage,
+          attempt,
+        });
         throw error;
       }
-
-      const durationMs = Date.now() - startTime;
-      this.store.updateNodeExecutionStatus(execId, "failed", durationMs);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.store.recordEvent(runId, nodeId, "node:error", errorMessage);
-      this.eventBus.emit("node:error", { runId, nodeId, error: errorMessage, attempt: 1 });
-      throw error;
     }
   }
 }

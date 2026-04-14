@@ -215,6 +215,16 @@ export class StoreQueries {
     }
   }
 
+  /** Get IDs of all completed nodes for a run (for checkpoint/resume). */
+  getCompletedNodeIds(runId: string): Set<string> {
+    const rows = this.db
+      .select({ nodeId: nodeExecutions.nodeId })
+      .from(nodeExecutions)
+      .where(and(eq(nodeExecutions.runId, runId), eq(nodeExecutions.status, "completed")))
+      .all();
+    return new Set(rows.map((r) => r.nodeId));
+  }
+
   /** Resume a paused run by setting its status back to "running". */
   resumeRun(id: string): void {
     this.db

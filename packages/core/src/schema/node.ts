@@ -87,32 +87,32 @@ export const NodeSchema = NodeBaseSchema.extend(NodeTypesSchema.shape).superRefi
   const defined = typeFields.filter((t) => t !== undefined);
   if (defined.length === 0) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "Node must have exactly one type: prompt, script, loop, approval, or cancel",
     });
   }
   if (defined.length > 1) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "Node must have exactly one type — found multiple",
     });
   }
   // runtime and deps only valid with script
   if (data.runtime !== undefined && data.script === undefined) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "'runtime' is only valid on script nodes",
     });
   }
   if (data.deps !== undefined && data.script === undefined) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "'deps' is only valid on script nodes",
     });
   }
   if (data.timeout !== undefined && data.script === undefined) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: "custom",
       message: "'timeout' is only valid on script nodes",
     });
   }
