@@ -1,0 +1,16 @@
+{
+  "name": "@cc-framework/utils",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vp test",
+    "build": "vp build"
+  },
+  "devDependencies": {
+    "vite-plus": "catalog:"
+  }
+}

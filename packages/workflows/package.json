@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.107",
     "@cc-framework/core": "workspace:*",
+    "@cc-framework/utils": "workspace:*",
     "better-sqlite3": "^11.8.0",
     "drizzle-orm": "^0.45.2",
     "yaml": "^2.7.0",

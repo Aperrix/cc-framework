@@ -45,12 +45,20 @@
         "vite-plus": "catalog:",
       },
     },
+    "packages/utils": {
+      "name": "@cc-framework/utils",
+      "version": "0.0.0",
+      "devDependencies": {
+        "vite-plus": "catalog:",
+      },
+    },
     "packages/workflows": {
       "name": "@cc-framework/workflows",
       "version": "0.0.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.107",
         "@cc-framework/core": "workspace:*",
+        "@cc-framework/utils": "workspace:*",
         "better-sqlite3": "^11.8.0",
         "drizzle-orm": "^0.45.2",
         "yaml": "^2.7.0",
@@ -83,6 +91,8 @@
     "@cc-framework/core": ["@cc-framework/core@workspace:packages/core"],
 
     "@cc-framework/mcp": ["@cc-framework/mcp@workspace:packages/mcp"],
+
+    "@cc-framework/utils": ["@cc-framework/utils@workspace:packages/utils"],
 
     "@cc-framework/workflows": ["@cc-framework/workflows@workspace:packages/workflows"],
 

@@ -24,7 +24,7 @@ import {
   logNodeComplete,
   logNodeSkip,
   logNodeError,
-} from "@cc-framework/core";
+} from "../logger.ts";
 
 import { buildSessionContext, formatSessionContext } from "../store/session-context.ts";
 

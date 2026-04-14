@@ -14,11 +14,8 @@ export async function loadConfig(projectRoot: string) {
 export type { ResolvedConfig, GlobalConfig, ProjectConfig } from "@cc-framework/core";
 export { CONFIG_DEFAULTS, initProject, ensureGlobalHome } from "@cc-framework/core";
 
-// ---- Logging (re-export from core) ----
+// ---- Logging ----
 export {
-  log,
-  setLogHandler,
-  resetLogHandler,
   logWorkflowStart,
   logWorkflowComplete,
   logWorkflowError,
@@ -26,10 +23,19 @@ export {
   logNodeComplete,
   logNodeSkip,
   logNodeError,
+} from "./logger.ts";
+
+export {
+  createLogger,
+  setLogLevel,
+  getLogLevel,
+  setLogWriter,
+  resetLogWriter,
+  type Logger,
   type LogLevel,
-  type LogEntry,
-  type LogHandler,
-} from "@cc-framework/core";
+  type LogContext,
+  type LogWriter,
+} from "@cc-framework/utils";
 
 // ---- Constants & Types ----
 export * from "./constants.ts";
