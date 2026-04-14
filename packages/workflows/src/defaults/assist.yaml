@@ -1,0 +1,8 @@
+name: assist
+description: |
+  General-purpose codebase assistant for Q&A, debugging, exploration, and one-off tasks.
+  Use when no other workflow matches the request.
+interactive: true
+nodes:
+  - id: assist
+    prompt: prompts/assist/assist.md

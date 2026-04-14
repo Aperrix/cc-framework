@@ -7,7 +7,7 @@ import {
   parseWorkflow,
   WorkflowExecutor,
   WorkflowEventBus,
-} from "@cc-framework/core";
+} from "@cc-framework/workflows";
 
 import type { McpContext } from "./context.ts";
 

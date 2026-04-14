@@ -33,7 +33,10 @@ async function loadYaml<T>(path: string): Promise<T | null> {
  * 3. Project config (.cc-framework/config.yaml)
  * 4. Environment variables (CCF_MODEL, CCF_HOME)
  */
-export async function loadConfig(projectRoot: string): Promise<ResolvedConfig> {
+export async function loadConfig(
+  projectRoot: string,
+  embeddedWorkflows: string = "",
+): Promise<ResolvedConfig> {
   const globalHome = getGlobalHome();
   const globalConfigPath = join(globalHome, "config.yaml");
   const projectConfigDir = join(projectRoot, ".cc-framework");
@@ -45,6 +48,7 @@ export async function loadConfig(projectRoot: string): Promise<ResolvedConfig> {
 
   // Resolve paths
   const paths: ResolvedConfig["paths"] = {
+    embeddedWorkflows,
     globalHome,
     globalWorkflows: globalCfg?.workflowsDir ?? join(globalHome, "workflows"),
     database: globalCfg?.databasePath ?? join(globalHome, "cc-framework.db"),

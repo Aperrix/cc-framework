@@ -1,6 +1,10 @@
 /** Configuration type definitions for cc-framework. */
 
-import type { EffortLevel, IsolationStrategy } from "../constants.ts";
+/** Effort level for AI nodes. */
+type EffortLevel = "low" | "medium" | "high" | "max";
+
+/** Isolation strategy for workflow execution. */
+type IsolationStrategy = "branch" | "worktree";
 
 /** Global config (~/.cc-framework/config.yaml) — user-wide defaults. */
 export interface GlobalConfig {
@@ -49,6 +53,8 @@ export interface ResolvedConfig {
     branch_prefix: string;
   };
   paths: {
+    /** Bundled default workflows shipped with cc-framework. */
+    embeddedWorkflows: string;
     globalHome: string;
     globalWorkflows: string;
     database: string;
@@ -70,6 +76,7 @@ export const CONFIG_DEFAULTS: ResolvedConfig = {
     branch_prefix: "ccf/",
   },
   paths: {
+    embeddedWorkflows: "",
     globalHome: "",
     globalWorkflows: "",
     database: "",

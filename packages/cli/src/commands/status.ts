@@ -1,6 +1,6 @@
 /** ccf status [runId] — show run status. */
 
-import type { StoreQueries } from "@cc-framework/core";
+import type { StoreQueries } from "@cc-framework/workflows";
 import { formatRunStatus } from "../shared/format.ts";
 
 export async function commandStatus(

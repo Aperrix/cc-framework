@@ -1,6 +1,6 @@
 /** ccf logs <runId> — show event timeline for a run. */
 
-import type { StoreQueries } from "@cc-framework/core";
+import type { StoreQueries } from "@cc-framework/workflows";
 import { formatEvent, formatRunStatus } from "../shared/format.ts";
 
 export async function commandLogs(runId: string, store: StoreQueries): Promise<string> {

@@ -10,7 +10,7 @@
     "test": "vp test"
   },
   "dependencies": {
-    "@cc-framework/core": "workspace:*",
+    "@cc-framework/workflows": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {

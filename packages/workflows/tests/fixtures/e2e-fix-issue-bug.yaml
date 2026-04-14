@@ -1,0 +1,29 @@
+name: fix-issue
+description: E2E stub — fix-issue with bug classification
+
+nodes:
+  - id: classify
+    script: 'echo ''{"issue_number":42,"issue_type":"bug","title":"broken","complexity":"simple"}'''
+
+  - id: investigate
+    script: "echo 'root cause found'"
+    depends_on: [classify]
+    when: "$classify.output.issue_type == 'bug'"
+
+  - id: plan
+    script: "echo 'plan created'"
+    depends_on: [classify]
+    when: "$classify.output.issue_type != 'bug'"
+
+  - id: bridge-artifacts
+    script: "echo 'artifacts bridged'"
+    depends_on: [investigate, plan]
+    trigger_rule: one_success
+
+  - id: implement
+    script: "echo 'fix applied'"
+    depends_on: [bridge-artifacts]
+
+  - id: validate
+    script: "echo 'all tests pass'"
+    depends_on: [implement]

@@ -7,7 +7,7 @@ import {
   WorkflowEventBus,
   type ResolvedConfig,
   type StoreQueries,
-} from "@cc-framework/core";
+} from "@cc-framework/workflows";
 import { formatRunStatus } from "../shared/format.ts";
 
 export async function commandResume(

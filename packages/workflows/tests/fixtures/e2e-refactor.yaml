@@ -1,0 +1,25 @@
+name: refactor
+description: E2E stub — sequential refactor pipeline
+
+nodes:
+  - id: scan-scope
+    script: "echo 'found 3 files to refactor'"
+
+  - id: analyze-impact
+    script: "echo 'impact analysis complete'"
+    depends_on: [scan-scope]
+    denied_tools: [Write, Edit]
+
+  - id: plan-tasks
+    script: 'echo ''{"task_count":3,"files_affected":2,"preserves_api":true}'''
+    depends_on: [analyze-impact]
+    denied_tools: [Write, Edit]
+
+  - id: validate
+    script: "echo 'all tests pass after refactor'"
+    depends_on: [plan-tasks]
+
+  - id: verify-behavior
+    script: "echo 'no behavior changes detected'"
+    depends_on: [validate]
+    denied_tools: [Write, Edit, Bash]

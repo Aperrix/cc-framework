@@ -7,7 +7,7 @@ import {
   StoreQueries,
   type ResolvedConfig,
   type Database,
-} from "@cc-framework/core";
+} from "@cc-framework/workflows";
 
 export interface McpContext {
   config: ResolvedConfig;

@@ -1,6 +1,6 @@
 /** ccf init — initialize .cc-framework/ in the current project. */
 
-import { initProject } from "@cc-framework/core";
+import { initProject } from "@cc-framework/workflows";
 
 export async function commandInit(cwd: string): Promise<string> {
   await initProject(cwd);

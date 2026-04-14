@@ -10,7 +10,7 @@ import {
   logWorkflowStart,
   logWorkflowComplete,
   logWorkflowError,
-} from "@cc-framework/core";
+} from "@cc-framework/workflows";
 import { formatRunStatus } from "../shared/format.ts";
 
 export async function commandRun(

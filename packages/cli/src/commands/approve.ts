@@ -1,6 +1,6 @@
 /** ccf approve <runId> <nodeId> — approve a pending approval node. */
 
-import type { StoreQueries } from "@cc-framework/core";
+import type { StoreQueries } from "@cc-framework/workflows";
 
 export async function commandApprove(
   runId: string,

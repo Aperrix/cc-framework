@@ -1,0 +1,58 @@
+name: review
+description: |
+  Multi-aspect PR review with parallel specialized agents and synthesis.
+  Analyzes code quality, error handling, test coverage, security, and documentation impact.
+  Produces a synthesized review and optionally auto-fixes critical issues.
+
+inputs:
+  pr:
+    type: string
+    required: true
+    description: "PR number or URL to review"
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: SCOPE — Gather PR metadata and diff
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: gather-scope
+    prompt: prompts/review/gather-scope.md
+    output_format:
+      pr_number: "number"
+      base_branch: "string"
+      file_count: "number"
+      summary: "string"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: PARALLEL REVIEW — 4 specialized agents
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: code-review
+    prompt: prompts/review/code-review.md
+    depends_on: [gather-scope]
+
+  - id: error-handling
+    prompt: prompts/review/error-handling.md
+    depends_on: [gather-scope]
+
+  - id: test-coverage
+    prompt: prompts/review/test-coverage.md
+    depends_on: [gather-scope]
+
+  - id: security-review
+    prompt: prompts/review/security-review.md
+    depends_on: [gather-scope]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: SYNTHESIZE — Merge findings, prioritize
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: synthesize
+    prompt: prompts/review/synthesize.md
+    depends_on: [code-review, error-handling, test-coverage, security-review]
+    trigger_rule: one_success
+    output_format:
+      verdict: "string"
+      critical_count: "number"
+      high_count: "number"
+      findings: "string"

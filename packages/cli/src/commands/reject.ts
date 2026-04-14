@@ -1,6 +1,6 @@
 /** ccf reject <runId> <nodeId> [--reason "..."] — reject a pending approval node. */
 
-import type { StoreQueries } from "@cc-framework/core";
+import type { StoreQueries } from "@cc-framework/workflows";
 
 export async function commandReject(
   runId: string,

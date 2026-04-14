@@ -1,0 +1,25 @@
+{
+  "name": "@cc-framework/workflows",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vp test",
+    "build": "vp build"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.107",
+    "@cc-framework/core": "workspace:*",
+    "better-sqlite3": "^11.8.0",
+    "drizzle-orm": "^0.45.2",
+    "yaml": "^2.7.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "vite-plus": "catalog:"
+  }
+}

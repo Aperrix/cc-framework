@@ -1,0 +1,27 @@
+name: review
+description: E2E stub — parallel review agents with synthesis
+
+nodes:
+  - id: gather-scope
+    script: 'echo ''{"pr_number":123,"base_branch":"main","file_count":5,"summary":"widget changes"}'''
+
+  - id: code-review
+    script: "echo 'no issues found'"
+    depends_on: [gather-scope]
+
+  - id: error-handling
+    script: "echo 'error handling adequate'"
+    depends_on: [gather-scope]
+
+  - id: test-coverage
+    script: "echo 'coverage at 85%'"
+    depends_on: [gather-scope]
+
+  - id: security-review
+    script: "echo 'no vulnerabilities'"
+    depends_on: [gather-scope]
+
+  - id: synthesize
+    script: 'echo ''{"verdict":"APPROVE","critical_count":0,"high_count":0,"findings":"none"}'''
+    depends_on: [code-review, error-handling, test-coverage, security-review]
+    trigger_rule: one_success

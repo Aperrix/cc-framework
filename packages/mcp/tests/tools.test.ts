@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
 import { createHandlers } from "../src/tools.ts";
-import { createDatabase, StoreQueries, type Database } from "@cc-framework/core";
+import { createDatabase, StoreQueries, type Database } from "@cc-framework/workflows";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +13,7 @@ function makeTestContext(cwd: string, db: Database, store: StoreQueries): McpCon
       effort: "high",
       isolation: { strategy: "branch", branch_prefix: "ccf/" },
       paths: {
+        embeddedWorkflows: "",
         globalHome: "",
         globalWorkflows: "",
         database: ":memory:",

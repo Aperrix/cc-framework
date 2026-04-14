@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
 import { commandList } from "../../src/commands/list.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { ResolvedConfig } from "@cc-framework/workflows";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,7 @@ function makeConfig(projectRoot: string): ResolvedConfig {
     effort: "high",
     isolation: { strategy: "branch", branch_prefix: "ccf/" },
     paths: {
+      embeddedWorkflows: "",
       globalHome: "",
       globalWorkflows: "",
       database: "",

@@ -1,0 +1,98 @@
+name: fix-issue
+description: |
+  Investigate a GitHub issue, plan a fix, implement it, validate, and create a PR.
+  Handles both bugs (investigate) and features/enhancements (plan).
+
+isolation:
+  strategy: worktree
+  branch_prefix: "ccf/fix/"
+
+inputs:
+  issue:
+    type: string
+    required: true
+    description: "GitHub issue number or URL"
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: CLASSIFY — Determine issue type and extract metadata
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: classify
+    prompt: prompts/fix-issue/classify.md
+    model: claude-haiku-4-5-20251001
+    allowed_tools: [Bash]
+    output_format:
+      issue_number: "number"
+      issue_type: "string"
+      title: "string"
+      complexity: "string"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: INVESTIGATE (bugs) or PLAN (features)
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: investigate
+    prompt: prompts/fix-issue/investigate.md
+    depends_on: [classify]
+    when: "$classify.output.issue_type == 'bug'"
+
+  - id: plan
+    prompt: prompts/fix-issue/plan.md
+    depends_on: [classify]
+    when: "$classify.output.issue_type != 'bug'"
+
+  # Bridge: normalize artifacts so implement always finds investigation.md
+  - id: bridge-artifacts
+    script: |
+      if [ -f "$ARTIFACTS_DIR/plan.md" ] && [ ! -f "$ARTIFACTS_DIR/investigation.md" ]; then
+        cp "$ARTIFACTS_DIR/plan.md" "$ARTIFACTS_DIR/investigation.md"
+        echo "Bridged plan.md to investigation.md"
+      else
+        echo "investigation.md already exists"
+      fi
+    runtime: bash
+    depends_on: [investigate, plan]
+    trigger_rule: one_success
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: IMPLEMENT — Apply the fix with validation
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: implement
+    prompt: prompts/fix-issue/implement.md
+    depends_on: [bridge-artifacts]
+    retry:
+      max_attempts: 2
+      on_error: transient
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: VALIDATE — Run tests and checks
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: validate
+    prompt: prompts/fix-issue/validate.md
+    depends_on: [implement]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: APPROVAL — Human review before PR creation
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: approve-pr
+    approval:
+      message: |
+        Implementation and validation complete.
+        Review the changes before creating a PR.
+        Run `git diff` to inspect.
+      on_reject:
+        prompt: "Rework the implementation based on this feedback: $approve-pr.output"
+        max_attempts: 2
+    depends_on: [validate]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 6: CREATE PR
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: create-pr
+    prompt: prompts/fix-issue/create-pr.md
+    depends_on: [approve-pr]

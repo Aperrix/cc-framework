@@ -1,0 +1,92 @@
+name: feature
+description: |
+  End-to-end feature development: plan, implement iteratively, test, review, and create a PR.
+  Takes an idea or description and produces a merge-ready PR.
+
+isolation:
+  strategy: worktree
+  branch_prefix: "ccf/feat/"
+
+inputs:
+  description:
+    type: string
+    required: true
+    description: "Feature description or path to a PRD file"
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: PLAN — Analyze codebase and create implementation plan
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: plan
+    prompt: prompts/feature/plan.md
+    output_format:
+      task_count: "number"
+      estimated_files: "number"
+      plan_summary: "string"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: APPROVAL — Review plan before implementation
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: approve-plan
+    approval:
+      message: |
+        Implementation plan created with $plan.output.task_count tasks.
+        Review the plan at $ARTIFACTS_DIR/plan.md before proceeding.
+      capture_response: true
+      on_reject:
+        prompt: "Revise the plan based on this feedback: $approve-plan.output"
+        max_attempts: 2
+    depends_on: [plan]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: IMPLEMENT — Iterative implementation loop
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: implement
+    loop:
+      prompt: |
+        You are implementing a feature plan task by task.
+
+        ## Plan
+        Read the plan from $ARTIFACTS_DIR/plan.md
+
+        ## Progress
+        Check $ARTIFACTS_DIR/progress.md for completed tasks.
+
+        ## Instructions
+        1. Find the next uncompleted task in the plan
+        2. Implement it with proper tests
+        3. Run the project's check command to verify
+        4. Update $ARTIFACTS_DIR/progress.md marking the task done
+        5. If all tasks are complete, output COMPLETE
+        6. If there are remaining tasks, output CONTINUE
+      until: COMPLETE
+      max_iterations: 15
+    depends_on: [approve-plan]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: VALIDATE — Full test suite and checks
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: validate
+    prompt: prompts/feature/validate.md
+    depends_on: [implement]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: SELF-REVIEW — Code quality check before PR
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: self-review
+    prompt: prompts/feature/self-review.md
+    depends_on: [validate]
+    denied_tools: [Write, Edit]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 6: CREATE PR
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: create-pr
+    prompt: prompts/feature/create-pr.md
+    depends_on: [self-review]

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
 import { commandLogs } from "../../src/commands/logs.ts";
-import { createDatabase, StoreQueries, type Database } from "@cc-framework/core";
+import { createDatabase, StoreQueries, type Database } from "@cc-framework/workflows";
 
 describe("commandLogs", () => {
   let db: Database;

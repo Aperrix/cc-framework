@@ -1,0 +1,131 @@
+name: refactor
+description: |
+  Safe refactoring with continuous validation and behavior preservation.
+  Analyzes impact, plans ordered tasks, executes with type-checking,
+  and verifies no behavior changes were introduced.
+
+isolation:
+  strategy: worktree
+  branch_prefix: "ccf/refactor/"
+
+inputs:
+  target:
+    type: string
+    required: true
+    description: "Refactoring target — file path, module, or description of what to refactor"
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: SCAN — Identify files in the refactoring scope
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: scan-scope
+    script: |
+      echo "=== REFACTORING TARGET ==="
+      echo "User request: $ARGUMENTS"
+      echo ""
+      echo "=== SOURCE FILES ==="
+      find . -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \) \
+        -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/.git/*' | \
+        head -200
+      echo ""
+      echo "=== FILE SIZES (lines) ==="
+      find . -type f \( -name '*.ts' -o -name '*.tsx' \) \
+        -not -path '*/node_modules/*' -not -path '*/dist/*' | \
+        xargs wc -l 2>/dev/null | sort -rn | head -30
+    runtime: bash
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: ANALYZE — Read-only impact analysis
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: analyze-impact
+    prompt: prompts/refactor/analyze-impact.md
+    depends_on: [scan-scope]
+    denied_tools: [Write, Edit]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: PLAN — Create ordered, incremental refactoring tasks
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: plan-tasks
+    prompt: prompts/refactor/plan-tasks.md
+    depends_on: [analyze-impact]
+    denied_tools: [Write, Edit]
+    output_format:
+      task_count: "number"
+      files_affected: "number"
+      preserves_api: "boolean"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: APPROVAL — Review plan before execution
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: approve-plan
+    approval:
+      message: |
+        Refactoring plan with $plan-tasks.output.task_count tasks affecting $plan-tasks.output.files_affected files.
+        Public API preserved: $plan-tasks.output.preserves_api
+        Review the plan at $ARTIFACTS_DIR/refactor-plan.md
+      on_reject:
+        prompt: "Revise the refactoring plan based on this feedback: $approve-plan.output"
+        max_attempts: 2
+    depends_on: [plan-tasks]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: EXECUTE — Apply refactoring step by step
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: execute
+    loop:
+      prompt: |
+        You are executing a refactoring plan step by step.
+
+        ## Plan
+        Read the refactoring plan from $ARTIFACTS_DIR/refactor-plan.md
+
+        ## Progress
+        Check $ARTIFACTS_DIR/refactor-progress.md for completed steps.
+
+        ## Rules
+        - Each step must leave the codebase in a compilable state
+        - Run type-checking after every file change
+        - Do NOT combine refactoring with bug fixes or improvements
+        - Commit each step separately for easy review/revert
+        - Preserve all existing exports and public API
+
+        ## Instructions
+        1. Find the next uncompleted step
+        2. Apply the structural change
+        3. Run type-check to verify compilability
+        4. Commit with a descriptive message
+        5. Update $ARTIFACTS_DIR/refactor-progress.md
+        6. Output COMPLETE if all steps done, CONTINUE otherwise
+      until: COMPLETE
+      max_iterations: 20
+    depends_on: [approve-plan]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 6: VALIDATE — Full test suite
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: validate
+    prompt: prompts/refactor/validate.md
+    depends_on: [execute]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 7: VERIFY — Read-only behavior preservation check
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: verify-behavior
+    prompt: prompts/refactor/verify-behavior.md
+    depends_on: [validate]
+    denied_tools: [Write, Edit, Bash]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 8: CREATE PR
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: create-pr
+    prompt: prompts/refactor/create-pr.md
+    depends_on: [verify-behavior]

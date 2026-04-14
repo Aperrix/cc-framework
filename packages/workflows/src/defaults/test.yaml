@@ -1,0 +1,105 @@
+name: test
+description: |
+  Analyze test coverage, identify gaps, and generate missing tests.
+  Runs coverage analysis, then iteratively generates tests until
+  coverage thresholds are met.
+
+inputs:
+  target:
+    type: string
+    required: false
+    description: "Specific file or directory to test (defaults to entire project)"
+    default: "."
+
+nodes:
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 1: BASELINE — Capture current coverage
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: coverage-baseline
+    script: |
+      echo "=== RUNNING TEST SUITE WITH COVERAGE ==="
+      # Try common coverage commands in order
+      if command -v vp &>/dev/null; then
+        vp test run --coverage 2>&1 || true
+      elif [ -f "package.json" ]; then
+        npx vitest run --coverage 2>&1 || npx jest --coverage 2>&1 || true
+      elif [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        python -m pytest --cov --cov-report=term-missing 2>&1 || true
+      else
+        echo "No test framework detected"
+      fi
+    runtime: bash
+    timeout: 120
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 2: ANALYZE — Identify coverage gaps
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: analyze-gaps
+    prompt: prompts/test/analyze-gaps.md
+    depends_on: [coverage-baseline]
+    output_format:
+      current_coverage: "number"
+      gap_count: "number"
+      priority_files: "string"
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 3: GENERATE — Iteratively write missing tests
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: generate-tests
+    loop:
+      prompt: |
+        You are generating tests to improve coverage.
+
+        ## Coverage Analysis
+        $analyze-gaps.output
+
+        ## Progress
+        Check $ARTIFACTS_DIR/test-progress.md for tests already generated.
+
+        ## Instructions
+        1. Pick the highest-priority uncovered file/function
+        2. Read the source code to understand the behavior
+        3. Write comprehensive tests (happy path, edge cases, error cases)
+        4. Run the tests to verify they pass
+        5. Update $ARTIFACTS_DIR/test-progress.md
+        6. If coverage targets are met or all gaps addressed, output COMPLETE
+        7. Otherwise output CONTINUE
+      until: COMPLETE
+      max_iterations: 10
+    depends_on: [analyze-gaps]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 4: FINAL COVERAGE — Verify improvement
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: coverage-final
+    script: |
+      echo "=== FINAL COVERAGE REPORT ==="
+      if command -v vp &>/dev/null; then
+        vp test run --coverage 2>&1 || true
+      elif [ -f "package.json" ]; then
+        npx vitest run --coverage 2>&1 || npx jest --coverage 2>&1 || true
+      elif [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        python -m pytest --cov --cov-report=term-missing 2>&1 || true
+      else
+        echo "No test framework detected"
+      fi
+    runtime: bash
+    timeout: 120
+    depends_on: [generate-tests]
+
+  # ═══════════════════════════════════════════════════════════════
+  # PHASE 5: REPORT — Summary of improvements
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: report
+    prompt: prompts/test/report.md
+    depends_on: [coverage-final]
+    output_format:
+      before_coverage: "number"
+      after_coverage: "number"
+      tests_added: "number"
+      files_covered: "number"
