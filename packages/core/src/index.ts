@@ -78,6 +78,12 @@ export {
   type ApprovalResult,
 } from "./runners/approval-runner.ts";
 export { runCancel, WorkflowCancelledError } from "./runners/cancel-runner.ts";
+export {
+  classifyError,
+  isRetryable,
+  type ClassifiedError,
+  type ErrorSeverity,
+} from "./runners/error-classifier.ts";
 
 // ---- Executor ----
 export { WorkflowExecutor, type RunResult } from "./executor/executor.ts";
@@ -94,9 +100,26 @@ export {
   type ApprovalRequestEvent,
 } from "./events/event-bus.ts";
 
+// ---- Config ----
+export { loadConfig, initProject, ensureGlobalHome } from "./config/loader.ts";
+export { CONFIG_DEFAULTS } from "./config/types.ts";
+export type { GlobalConfig, ProjectConfig, ResolvedConfig } from "./config/types.ts";
+
 // ---- Isolation ----
 export {
   setupIsolation,
   cleanupIsolation,
+  listWorktrees,
+  cleanupOrphanedWorktrees,
   type IsolationEnvironment,
 } from "./isolation/isolation.ts";
+
+// ---- Discovery ----
+
+export { discoverWorkflows, findWorkflow, type DiscoveredWorkflow } from "./discovery/workflows.ts";
+export {
+  resolvePromptWithConfig,
+  discoverPrompts,
+  type DiscoveredPrompt,
+} from "./discovery/prompts.ts";
+export { discoverScripts, findScript, type DiscoveredScript } from "./discovery/scripts.ts";
