@@ -37,7 +37,7 @@ function defaultHandler(entry: LogEntry): void {
       console.debug(...parts);
       break;
     default:
-      console.log(...parts);
+      console.debug(...parts);
   }
 }
 
