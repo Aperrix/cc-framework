@@ -1,5 +1,8 @@
+/** Core workflow executor — orchestrates DAG traversal, node dispatch, and run lifecycle. */
+
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
+
 import { buildDag } from "../dag/build-dag.ts";
 import { substituteVariables } from "../variables/substitute.ts";
 import { runScript } from "../runners/script-runner.ts";
@@ -7,9 +10,11 @@ import { runAi } from "../runners/ai-runner.ts";
 import { runLoop } from "../runners/loop-runner.ts";
 import { requestApproval, WorkflowPausedError } from "../runners/approval-runner.ts";
 import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
+
 import type { StoreQueries } from "../store/queries.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
 import type { Workflow } from "../schema/workflow.ts";
+import type { RunStatus } from "../constants.ts";
 import {
   type Node,
   isPromptNode,
@@ -18,8 +23,6 @@ import {
   isApprovalNode,
   isCancelNode,
 } from "../schema/node.ts";
-
-import type { RunStatus } from "../constants.ts";
 
 export interface RunResult {
   runId: string;
@@ -56,7 +59,7 @@ function evaluateSingleCondition(
   clause: string,
   nodeOutputs: Record<string, { output: string }>,
 ): boolean {
-  // Match: $nodeId.output.field OP 'value' or $nodeId.output OP 'value'
+  // Pattern: $nodeId.output[.field] OP 'value'
   const match = clause.match(/^\$(\w+)\.output(?:\.(\w+))?\s*(==|!=|>=?|<=?)\s*'([^']*)'$/);
   if (!match) return false;
 
@@ -103,24 +106,22 @@ export class WorkflowExecutor {
   async run(workflow: Workflow, cwd: string, args?: string): Promise<RunResult> {
     const startTime = Date.now();
 
-    // 1. Persist workflow and create run
+    // Phase 1: Persist workflow and create run record
     const yamlHash = createHash("sha256").update(JSON.stringify(workflow)).digest("hex");
     const workflowId = this.store.upsertWorkflow(workflow.name, "embedded", yamlHash);
     const runId = this.store.createRun(workflowId, args);
     this.store.updateRunStatus(runId, "running");
 
-    // 2. Build DAG layers
+    // Phase 2: Build DAG layers and prepare execution context
     const layers = buildDag(workflow.nodes);
     const nodeMap = new Map<string, Node>();
     for (const node of workflow.nodes) {
       nodeMap.set(node.id, node);
     }
 
-    // Pre-create artifacts directory
     const artifactsDir = `${cwd}/.cc-framework/artifacts/${runId}`;
     await mkdir(artifactsDir, { recursive: true });
 
-    // Accumulate outputs across layers
     const nodeOutputs: Record<string, { output: string }> = {};
     const builtins: Record<string, string> = { ARTIFACTS_DIR: artifactsDir };
     if (args) builtins.ARGUMENTS = args;
@@ -128,7 +129,7 @@ export class WorkflowExecutor {
     let finalStatus: RunStatus = "completed";
 
     try {
-      // 3. Execute layer by layer
+      // Phase 3: Execute layer by layer (nodes within a layer run in parallel)
       for (const layer of layers) {
         const layerPromises = layer.nodeIds.map((nodeId) =>
           this.executeNode(
@@ -144,7 +145,6 @@ export class WorkflowExecutor {
 
         const results = await Promise.allSettled(layerPromises);
 
-        // Check for failures
         for (const result of results) {
           if (result.status === "rejected") {
             if (result.reason instanceof WorkflowCancelledError) {
@@ -174,7 +174,7 @@ export class WorkflowExecutor {
       }
     }
 
-    // 4. Finalize
+    // Phase 4: Finalize run status and emit completion event
     this.store.updateRunStatus(runId, finalStatus);
     const durationMs = Date.now() - startTime;
     if (finalStatus !== "paused") {
@@ -193,7 +193,7 @@ export class WorkflowExecutor {
     nodeOutputs: Record<string, { output: string }>,
     builtins: Record<string, string>,
   ): Promise<void> {
-    // Evaluate `when` condition
+    // Evaluate `when` condition — skip node if it returns false
     if (node.when) {
       const shouldRun = evaluateWhen(node.when, nodeOutputs);
       if (!shouldRun) {
@@ -254,7 +254,6 @@ export class WorkflowExecutor {
     } catch (error) {
       if (error instanceof WorkflowPausedError) {
         this.store.pauseRun(runId, error.approvalContext);
-        // Don't mark the node as failed — it's paused
         throw error;
       }
 

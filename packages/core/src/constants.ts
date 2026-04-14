@@ -1,8 +1,6 @@
-// Centralized constants for cc-framework core.
-// All enum-like values are defined here and derived types are exported.
-// Schemas, store, runners, and executor all import from this file.
+/** Centralized constants and derived types for cc-framework. */
 
-// --- Workflow definition ---
+// ---- Workflow Definition ----
 
 export const TRIGGER_RULES = [
   "all_success",
@@ -36,7 +34,7 @@ export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 export const WEB_SEARCH_MODES = ["disabled", "cached", "live"] as const;
 export type WebSearchMode = (typeof WEB_SEARCH_MODES)[number];
 
-// --- Runtime state ---
+// ---- Runtime State ----
 
 export const WORKFLOW_SOURCES = ["embedded", "custom"] as const;
 export type WorkflowSource = (typeof WORKFLOW_SOURCES)[number];

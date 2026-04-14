@@ -1,4 +1,7 @@
+/** Top-level Zod schema for a cc-framework workflow definition. */
+
 import { z } from "zod";
+
 import { NodeSchema } from "./node.ts";
 import {
   IsolationSchema,
@@ -7,12 +10,11 @@ import {
   ThinkingConfigSchema,
   EffortLevelSchema,
 } from "./common.ts";
+import { REASONING_EFFORTS, WEB_SEARCH_MODES } from "../constants.ts";
 
 // Re-export constants and types from centralized module
 export { REASONING_EFFORTS, WEB_SEARCH_MODES } from "../constants.ts";
 export type { ReasoningEffort, WebSearchMode } from "../constants.ts";
-
-import { REASONING_EFFORTS, WEB_SEARCH_MODES } from "../constants.ts";
 
 export const WorkflowSchema = z.object({
   name: z.string().min(1),

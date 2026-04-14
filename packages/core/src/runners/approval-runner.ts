@@ -1,6 +1,9 @@
+/** Human-in-the-loop approval gate that pauses workflow execution until approved or rejected. */
+
 import type { ApprovalConfig } from "../schema/node.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
 
+/** Serializable context persisted when a run is paused for approval. */
 export interface ApprovalContext {
   nodeId: string;
   message: string;
@@ -10,11 +13,13 @@ export interface ApprovalContext {
   rejectionCount: number;
 }
 
+/** Response from the external approval handler (MCP tool or CLI). */
 export interface ApprovalResult {
   approved: boolean;
   response?: string;
 }
 
+/** Thrown to signal that the workflow should pause, not that it failed. */
 export class WorkflowPausedError extends Error {
   constructor(
     public readonly nodeId: string,
@@ -25,6 +30,7 @@ export class WorkflowPausedError extends Error {
   }
 }
 
+/** Type guard to validate a parsed JSON payload as an ApprovalContext. */
 export function isApprovalContext(val: unknown): val is ApprovalContext {
   return (
     typeof val === "object" &&

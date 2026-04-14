@@ -1,4 +1,7 @@
+/** Zod schema and type guards for workflow node definitions. */
+
 import { z } from "zod";
+
 import {
   TriggerRuleSchema,
   WhenConditionSchema,
@@ -8,14 +11,13 @@ import {
   ThinkingConfigSchema,
   EffortLevelSchema,
 } from "./common.ts";
+import { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
 
 // Re-export constants and types from centralized module
 export { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
 export type { ContextMode, ScriptRuntime } from "../constants.ts";
 
-import { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
-
-// --- Sub-schemas ---
+// ---- Sub-schemas ----
 
 const LoopConfigSchema = z.object({
   prompt: z.string().min(1),
@@ -38,7 +40,7 @@ const ApprovalConfigSchema = z.object({
     .optional(),
 });
 
-// --- Node base (common properties) ---
+// ---- Node Base (common properties) ----
 
 const NodeBaseSchema = z.object({
   id: z.string().min(1),
@@ -66,7 +68,7 @@ const NodeBaseSchema = z.object({
   skills: z.array(z.string().min(1)).optional(),
 });
 
-// --- Node types (exactly one must be set) ---
+// ---- Node Types (exactly one must be set) ----
 
 const NodeTypesSchema = z.object({
   prompt: z.string().min(1).optional(),
@@ -120,7 +122,7 @@ export type Node = z.infer<typeof NodeSchema>;
 export type LoopConfig = z.infer<typeof LoopConfigSchema>;
 export type ApprovalConfig = z.infer<typeof ApprovalConfigSchema>;
 
-// --- Narrowed types for type guards ---
+// ---- Narrowed Types ----
 
 export type PromptNode = Node & { prompt: string };
 export type ScriptNode = Node & { script: string };
@@ -128,24 +130,29 @@ export type LoopNode = Node & { loop: z.infer<typeof LoopConfigSchema> };
 export type ApprovalNode = Node & { approval: z.infer<typeof ApprovalConfigSchema> };
 export type CancelNode = Node & { cancel: string };
 
-// --- Type guards ---
+// ---- Type Guards ----
 
+/** Narrow a Node to a PromptNode. */
 export function isPromptNode(node: Node): node is PromptNode {
   return node.prompt !== undefined;
 }
 
+/** Narrow a Node to a ScriptNode. */
 export function isScriptNode(node: Node): node is ScriptNode {
   return node.script !== undefined;
 }
 
+/** Narrow a Node to a LoopNode. */
 export function isLoopNode(node: Node): node is LoopNode {
   return node.loop !== undefined && typeof node.loop === "object";
 }
 
+/** Narrow a Node to an ApprovalNode. */
 export function isApprovalNode(node: Node): node is ApprovalNode {
   return node.approval !== undefined && typeof node.approval === "object";
 }
 
+/** Narrow a Node to a CancelNode. */
 export function isCancelNode(node: Node): node is CancelNode {
   return node.cancel !== undefined;
 }

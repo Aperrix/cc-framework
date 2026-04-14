@@ -1,11 +1,23 @@
+/** Variable substitution engine for prompt and script templates. */
+
 interface NodeOutput {
   output: string;
 }
 
+/** Aliases that map one built-in name to another (e.g. $USER_MESSAGE -> $ARGUMENTS). */
 const BUILTIN_ALIASES: Record<string, string> = {
   USER_MESSAGE: "ARGUMENTS",
 };
 
+/**
+ * Replace variable references in `text` using three substitution passes:
+ *
+ * 1. `$nodeId.output.field` — extract a JSON field from a node's output
+ * 2. `$nodeId.output`       — inject the full output of a completed node
+ * 3. `$BUILTIN`             — inject a built-in variable (e.g. $ARGUMENTS, $ARTIFACTS_DIR)
+ *
+ * Unresolvable references are left as-is so downstream tooling can surface them.
+ */
 export function substituteVariables(
   text: string,
   builtins: Record<string, string>,
@@ -20,7 +32,7 @@ export function substituteVariables(
 
   let result = text;
 
-  // Replace $nodeId.output.field (JSON extraction) — must come before $nodeId.output
+  // Pass 1: $nodeId.output.field (JSON extraction) — must come before pass 2
   result = result.replace(/\$(\w+)\.output\.(\w+)/g, (match, nodeId: string, field: string) => {
     const node = nodeOutputs[nodeId];
     if (!node) return match;
@@ -32,13 +44,13 @@ export function substituteVariables(
     }
   });
 
-  // Replace $nodeId.output (full output)
+  // Pass 2: $nodeId.output (full output)
   result = result.replace(/\$(\w+)\.output(?!\.\w)/g, (match, nodeId: string) => {
     const node = nodeOutputs[nodeId];
     return node ? node.output : match;
   });
 
-  // Replace $BUILTIN variables
+  // Pass 3: $BUILTIN variables (uppercase names only)
   result = result.replace(/\$([A-Z_]+)/g, (match, name: string) => {
     return resolved[name] !== undefined ? resolved[name] : match;
   });

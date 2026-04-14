@@ -1,6 +1,9 @@
+/** SQLite database schema and bootstrap for the cc-framework persistent store. */
+
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import BetterSqlite3 from "better-sqlite3";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
+
 import {
   WORKFLOW_SOURCES,
   RUN_STATUSES,
@@ -18,7 +21,7 @@ export type {
   WorkflowSource,
 } from "../constants.ts";
 
-// --- Table definitions ---
+// ---- Table Definitions ----
 
 export const workflows = sqliteTable("workflows", {
   id: text("id").primaryKey(),
@@ -113,12 +116,13 @@ export const isolationEnvironments = sqliteTable("isolation_environments", {
   cleanedAt: integer("cleaned_at", { mode: "number" }),
 });
 
-// --- Database types ---
+// ---- Database Types ----
 
 export type Database = ReturnType<typeof createDatabase>;
 
-// --- Database creation ---
+// ---- Database Creation ----
 
+/** Create and bootstrap a SQLite database at the given path with WAL mode enabled. */
 export function createDatabase(path: string) {
   const sqlite = new BetterSqlite3(path);
   sqlite.pragma("journal_mode = WAL");

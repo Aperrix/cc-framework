@@ -1,4 +1,8 @@
+/** Shared Zod schemas and types reused across node and workflow definitions. */
+
 import { z } from "zod";
+
+import type { TriggerRule } from "../constants.ts";
 import {
   TRIGGER_RULES,
   RETRY_ERROR_MODES,
@@ -10,6 +14,8 @@ import {
 // Re-export constants and types from centralized module
 export { TRIGGER_RULES, RETRY_ERROR_MODES, ISOLATION_STRATEGIES, INPUT_TYPES, EFFORT_LEVELS };
 export type { TriggerRule, EffortLevel, IsolationStrategy } from "../constants.ts";
+
+// ---- Schemas ----
 
 export const TriggerRuleSchema = z.enum(TRIGGER_RULES);
 
@@ -73,8 +79,9 @@ export const SandboxSchema = z.object({
 });
 export type Sandbox = z.infer<typeof SandboxSchema>;
 
-// Type guard for trigger rules
-import type { TriggerRule } from "../constants.ts";
+// ---- Type Guards ----
+
+/** Check whether an unknown value is a valid TriggerRule string. */
 export function isTriggerRule(value: unknown): value is TriggerRule {
   return typeof value === "string" && TRIGGER_RULES.includes(value as TriggerRule);
 }

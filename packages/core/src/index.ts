@@ -1,9 +1,9 @@
-// packages/core/src/index.ts
+/** Public API surface for @cc-framework/core. */
 
-// Centralized constants and types
+// ---- Constants & Types ----
 export * from "./constants.ts";
 
-// Schema
+// ---- Schema ----
 export { WorkflowSchema, type Workflow } from "./schema/workflow.ts";
 export {
   NodeSchema,
@@ -42,17 +42,17 @@ export {
 } from "./schema/common.ts";
 export { generateWorkflowJsonSchema } from "./schema/generate-json-schema.ts";
 
-// Parser
+// ---- Parser ----
 export { parseWorkflow } from "./parser/parse-workflow.ts";
 export { resolvePrompt } from "./parser/resolve-prompt.ts";
 
-// DAG
+// ---- DAG ----
 export { buildDag, type DagLayer } from "./dag/build-dag.ts";
 
-// Variables
+// ---- Variables ----
 export { substituteVariables } from "./variables/substitute.ts";
 
-// Store
+// ---- Store ----
 export {
   createDatabase,
   type Database,
@@ -66,7 +66,7 @@ export {
 } from "./store/database.ts";
 export { StoreQueries } from "./store/queries.ts";
 
-// Runners
+// ---- Runners ----
 export { runScript, type ScriptResult } from "./runners/script-runner.ts";
 export { runAi, type AiResult } from "./runners/ai-runner.ts";
 export { runLoop, type LoopResult } from "./runners/loop-runner.ts";
@@ -79,10 +79,10 @@ export {
 } from "./runners/approval-runner.ts";
 export { runCancel, WorkflowCancelledError } from "./runners/cancel-runner.ts";
 
-// Executor
+// ---- Executor ----
 export { WorkflowExecutor, type RunResult } from "./executor/executor.ts";
 
-// Events
+// ---- Events ----
 export {
   WorkflowEventBus,
   type NodeStartEvent,
@@ -94,7 +94,7 @@ export {
   type ApprovalRequestEvent,
 } from "./events/event-bus.ts";
 
-// Isolation
+// ---- Isolation ----
 export {
   setupIsolation,
   cleanupIsolation,

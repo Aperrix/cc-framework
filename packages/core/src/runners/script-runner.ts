@@ -1,16 +1,25 @@
+/** Executes script nodes via bash, bun, or uv (Python) runtimes. */
+
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+
 import type { ScriptRuntime } from "../constants.ts";
 
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT = 120_000; // 2 minutes
 
+// ---- Interfaces ----
+
+/** Result returned from a script execution, including combined stdout+stderr. */
 export interface ScriptResult {
   output: string;
   exitCode: number;
 }
 
+// ---- Helpers ----
+
+/** Detect whether a script value is a file path (by extension or prefix) vs inline code. */
 function isFilePath(value: string): boolean {
   return (
     value.endsWith(".sh") ||
@@ -21,6 +30,9 @@ function isFilePath(value: string): boolean {
   );
 }
 
+// ---- Main ----
+
+/** Run a script string or file using the specified runtime and return its output. */
 export async function runScript(
   script: string,
   cwd: string,
@@ -34,6 +46,7 @@ export async function runScript(
   let cmd: string;
   let args: string[];
 
+  // Dispatch to the appropriate runtime CLI
   switch (runtime) {
     case "bash":
       cmd = "bash";
@@ -45,6 +58,7 @@ export async function runScript(
       break;
     case "uv": {
       cmd = "uv";
+      // uv uses --with flags to inject inline dependencies
       const depFlags = (deps ?? []).flatMap((d) => ["--with", d]);
       args = isFile ? ["run", ...depFlags, script] : ["run", ...depFlags, "python", "-c", script];
       break;
