@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
-import { loadConfig, initProject } from "../../src/config/loader.ts";
+import { loadConfig, initProject, ensureGlobalHome } from "../../src/config/loader.ts";
 import { mkdtemp, rm, writeFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,6 +69,18 @@ describe("initProject", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
+  it("does not overwrite existing config.yaml", async () => {
+    const configDir = join(tempDir, ".cc-framework");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(join(configDir, "config.yaml"), "model: opus\n");
+
+    await initProject(tempDir);
+
+    const { readFile } = await import("node:fs/promises");
+    const content = await readFile(join(configDir, "config.yaml"), "utf-8");
+    expect(content).toBe("model: opus\n");
+  });
+
   it("creates the .cc-framework directory structure", async () => {
     await initProject(tempDir);
 
@@ -77,5 +89,13 @@ describe("initProject", () => {
     expect((await stat(join(tempDir, ".cc-framework", "prompts"))).isDirectory()).toBe(true);
     expect((await stat(join(tempDir, ".cc-framework", "scripts"))).isDirectory()).toBe(true);
     expect((await stat(join(tempDir, ".cc-framework", "config.yaml"))).isFile()).toBe(true);
+  });
+});
+
+describe("ensureGlobalHome", () => {
+  it("creates the global home directory and returns its path", async () => {
+    const home = await ensureGlobalHome();
+    expect(typeof home).toBe("string");
+    expect(home.length).toBeGreaterThan(0);
   });
 });

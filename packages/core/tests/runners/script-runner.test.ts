@@ -24,6 +24,11 @@ describe("runScript", () => {
     expect(result.exitCode).not.toBe(0);
   });
 
+  it("handles non-zero exit code", async () => {
+    const result = await runScript("exit 42", "/tmp", "bash");
+    expect(result.exitCode).toBe(42);
+  });
+
   it("runs a bash file script", async () => {
     // Create a temp script file
     const { writeFileSync, unlinkSync } = await import("node:fs");
