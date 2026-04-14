@@ -53,7 +53,17 @@ export { buildDag, type DagLayer } from "./dag/build-dag.ts";
 export { substituteVariables } from "./variables/substitute.ts";
 
 // Store
-export { createDatabase, type Database } from "./store/database.ts";
+export {
+  createDatabase,
+  type Database,
+  workflows,
+  runs,
+  nodeExecutions,
+  outputs,
+  events,
+  artifacts,
+  isolationEnvironments,
+} from "./store/database.ts";
 export { StoreQueries } from "./store/queries.ts";
 
 // Runners

@@ -47,7 +47,7 @@ describe("StoreQueries", () => {
     const execId = store.createNodeExecution(runId, "investigate", 1);
     const exec = store.getNodeExecution(execId);
     expect(exec).not.toBeNull();
-    expect(exec!.node_id).toBe("investigate");
+    expect(exec!.nodeId).toBe("investigate");
     expect(exec!.attempt).toBe(1);
     expect(exec!.status).toBe("pending");
   });

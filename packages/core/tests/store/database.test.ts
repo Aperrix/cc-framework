@@ -1,4 +1,5 @@
 import { describe, expect, it, afterEach } from "vite-plus/test";
+import { sql } from "drizzle-orm";
 import { createDatabase, type Database } from "../../src/store/database.ts";
 
 describe("createDatabase", () => {
@@ -10,9 +11,9 @@ describe("createDatabase", () => {
 
   it("creates an in-memory database with all tables", () => {
     db = createDatabase(":memory:");
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-      .all() as { name: string }[];
+    const tables = db.all<{ name: string }>(
+      sql`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`,
+    );
     const names = tables.map((t) => t.name);
     expect(names).toContain("workflows");
     expect(names).toContain("runs");
