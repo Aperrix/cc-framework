@@ -26,6 +26,18 @@ export {
 } from "./logger.ts";
 
 export {
+  logFileEvent,
+  logFileWorkflowStart,
+  logFileWorkflowComplete,
+  logFileWorkflowError,
+  logFileNodeStart,
+  logFileNodeComplete,
+  logFileNodeSkip,
+  logFileNodeError,
+  type WorkflowFileEvent,
+} from "./file-logger.ts";
+
+export {
   createLogger,
   setLogLevel,
   getLogLevel,
@@ -78,6 +90,27 @@ export {
   type InputDefinition,
 } from "./schema/common.ts";
 export { generateWorkflowJsonSchema } from "./schema/generate-json-schema.ts";
+export {
+  HOOK_EVENTS,
+  HookMatcherSchema,
+  NodeHooksSchema,
+  type HookEvent,
+  type HookMatcher,
+  type NodeHooks,
+} from "./schema/hooks.ts";
+export {
+  WorkflowRunStatusSchema,
+  NodeExecutionStatusSchema,
+  NodeOutputSchema,
+  ApprovalContextSchema,
+  isApprovalContext as isApprovalContextSchema,
+  ArtifactTypeSchema,
+  type WorkflowRunStatus,
+  type NodeExecutionStatusZod,
+  type NodeOutput,
+  type ApprovalContext as ApprovalContextZod,
+  type ArtifactType,
+} from "./schema/workflow-run.ts";
 
 // ---- Utils ----
 export { isFilePath, isPromptFilePath, isScriptFilePath } from "./utils/file-path.ts";
@@ -90,7 +123,12 @@ export {
 } from "./utils/idle-timeout.ts";
 
 // ---- Parser ----
-export { parseWorkflow } from "./parser/parse-workflow.ts";
+export {
+  parseWorkflow,
+  parseWorkflowSafe,
+  type ParseResult,
+  type ParseError,
+} from "./parser/parse-workflow.ts";
 
 // ---- DAG ----
 export { buildDag, type DagLayer } from "./dag/build-dag.ts";
@@ -112,6 +150,7 @@ export {
   sessions,
 } from "./store/database.ts";
 export { StoreQueries } from "./store/queries.ts";
+export { createDatabaseFromUrl, isPostgresUrl } from "./store/create-database.ts";
 export {
   buildSessionContext,
   formatSessionContext,
@@ -120,7 +159,7 @@ export {
 } from "./store/session-context.ts";
 
 // ---- Runners ----
-export { runScript, type ScriptResult } from "./runners/script-runner.ts";
+export { runScript, installDeps, type ScriptResult } from "./runners/script-runner.ts";
 export { runAi, type AiResult } from "./runners/ai-runner.ts";
 export { runLoop, type LoopResult } from "./runners/loop-runner.ts";
 export {

@@ -5,8 +5,10 @@ import { promisify } from "node:util";
 
 import type { ScriptRuntime } from "../constants.ts";
 import { isScriptFilePath } from "../utils/file-path.ts";
+import { createLogger } from "@cc-framework/utils";
 
 const execFileAsync = promisify(execFile);
+const log = createLogger("script-runner");
 
 const DEFAULT_TIMEOUT = 120_000; // 2 minutes
 
@@ -16,6 +18,34 @@ const DEFAULT_TIMEOUT = 120_000; // 2 minutes
 export interface ScriptResult {
   output: string;
   exitCode: number;
+}
+
+// ---- Dependency Installation ----
+
+/** Install script dependencies before execution based on the runtime. */
+export async function installDeps(
+  deps: string[],
+  runtime: ScriptRuntime,
+  cwd: string,
+): Promise<void> {
+  if (deps.length === 0 || runtime === "bash") return;
+
+  let cmd: string;
+  let args: string[];
+
+  switch (runtime) {
+    case "bun":
+      cmd = "bun";
+      args = ["add", ...deps];
+      break;
+    case "uv":
+      cmd = "uv";
+      args = ["pip", "install", ...deps];
+      break;
+  }
+
+  log.info({ runtime, deps, cwd }, "Installing script dependencies");
+  await execFileAsync(cmd, args, { cwd });
 }
 
 // ---- Main ----
@@ -30,6 +60,12 @@ export async function runScript(
   env?: Record<string, string>,
 ): Promise<ScriptResult> {
   const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT;
+
+  // Install dependencies before running the script
+  if (deps && deps.length > 0) {
+    await installDeps(deps, runtime, cwd);
+  }
+
   const isFile = isScriptFilePath(script);
 
   let cmd: string;

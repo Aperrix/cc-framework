@@ -52,6 +52,12 @@ export interface ResolvedConfig {
     strategy: IsolationStrategy;
     branch_prefix: string;
   };
+  /**
+   * Database connection URL. When set, takes precedence over `paths.database`.
+   * Supports `postgres://` / `postgresql://` for PostgreSQL or a file path /
+   * ":memory:" for SQLite.
+   */
+  databaseUrl?: string;
   paths: {
     /** Bundled default workflows shipped with cc-framework. */
     embeddedWorkflows: string;

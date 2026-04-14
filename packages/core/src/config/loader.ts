@@ -68,6 +68,9 @@ export async function loadConfig(
       : join(projectRoot, "docs"),
   };
 
+  // Database URL: env var takes precedence, falls back to file path
+  const databaseUrl = process.env.CCF_DATABASE_URL ?? undefined;
+
   // Merge: defaults ← global ← project ← env
   const config: ResolvedConfig = {
     model: process.env.CCF_MODEL ?? projectCfg?.model ?? globalCfg?.model ?? CONFIG_DEFAULTS.model,
@@ -82,6 +85,7 @@ export async function loadConfig(
         globalCfg?.isolation?.branch_prefix ??
         CONFIG_DEFAULTS.isolation.branch_prefix,
     },
+    ...(databaseUrl ? { databaseUrl } : {}),
     paths,
   };
 

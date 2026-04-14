@@ -11,6 +11,7 @@ import {
   ThinkingConfigSchema,
   EffortLevelSchema,
 } from "./common.ts";
+import { NodeHooksSchema } from "./hooks.ts";
 import { CONTEXT_MODES, SCRIPT_RUNTIMES, EXECUTION_MODES } from "../constants.ts";
 
 // Re-export constants and types from centralized module
@@ -63,7 +64,7 @@ const NodeBaseSchema = z.object({
   allowed_tools: z.array(z.string()).optional(),
   denied_tools: z.array(z.string()).optional(),
   sandbox: SandboxSchema.optional(),
-  hooks: z.record(z.string(), z.unknown()).optional(),
+  hooks: NodeHooksSchema.optional(),
   mcp: z.string().min(1).optional(),
   skills: z.array(z.string().min(1)).optional(),
 });
