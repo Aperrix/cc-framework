@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, basename, isAbsolute } from "node:path";
 
 import type { ResolvedConfig } from "../config/types.ts";
+import { isPromptFilePath } from "../utils/file-path.ts";
 
 // ---- Types ----
 
@@ -29,10 +30,6 @@ async function listMdFiles(dir: string): Promise<string[]> {
   }
 }
 
-function isFilePath(value: string): boolean {
-  return value.endsWith(".md") || value.startsWith("./") || value.startsWith("/");
-}
-
 // ---- Main ----
 
 /**
@@ -46,7 +43,7 @@ export async function resolvePromptWithConfig(
   config: ResolvedConfig,
   embeddedDir?: string,
 ): Promise<string> {
-  if (!isFilePath(value)) {
+  if (!isPromptFilePath(value)) {
     return value;
   }
 

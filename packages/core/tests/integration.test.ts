@@ -7,9 +7,29 @@ import { WorkflowExecutor } from "../src/executor/executor.ts";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import type { Database } from "../src/store/database.ts";
+import type { ResolvedConfig } from "../src/config/types.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, "fixtures");
+
+function makeConfig(projectRoot: string): ResolvedConfig {
+  return {
+    model: "sonnet",
+    effort: "high",
+    isolation: { strategy: "branch", branch_prefix: "ccf/" },
+    paths: {
+      globalHome: "",
+      globalWorkflows: "",
+      database: "",
+      projectRoot,
+      projectConfig: join(projectRoot, ".cc-framework"),
+      projectWorkflows: join(projectRoot, ".cc-framework", "workflows"),
+      projectPrompts: join(projectRoot, "prompts"),
+      projectScripts: join(projectRoot, ".cc-framework", "scripts"),
+      docsDir: join(projectRoot, "docs"),
+    },
+  };
+}
 
 describe("Integration: YAML → Parse → Execute", () => {
   let db: Database;
@@ -19,7 +39,10 @@ describe("Integration: YAML → Parse → Execute", () => {
   });
 
   it("parses and executes a minimal workflow end-to-end", async () => {
-    const workflow = await parseWorkflow(join(fixturesDir, "minimal.yaml"), fixturesDir);
+    const workflow = await parseWorkflow(
+      join(fixturesDir, "minimal.yaml"),
+      makeConfig(fixturesDir),
+    );
 
     db = createDatabase(":memory:");
     const store = new StoreQueries(db);
@@ -47,7 +70,10 @@ describe("Integration: YAML → Parse → Execute", () => {
   });
 
   it("parses and executes a parallel workflow", async () => {
-    const workflow = await parseWorkflow(join(fixturesDir, "parallel.yaml"), fixturesDir);
+    const workflow = await parseWorkflow(
+      join(fixturesDir, "parallel.yaml"),
+      makeConfig(fixturesDir),
+    );
 
     db = createDatabase(":memory:");
     const store = new StoreQueries(db);

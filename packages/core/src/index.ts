@@ -42,9 +42,11 @@ export {
 } from "./schema/common.ts";
 export { generateWorkflowJsonSchema } from "./schema/generate-json-schema.ts";
 
+// ---- Utils ----
+export { isFilePath, isPromptFilePath, isScriptFilePath } from "./utils/file-path.ts";
+
 // ---- Parser ----
 export { parseWorkflow } from "./parser/parse-workflow.ts";
-export { resolvePrompt } from "./parser/resolve-prompt.ts";
 
 // ---- DAG ----
 export { buildDag, type DagLayer } from "./dag/build-dag.ts";

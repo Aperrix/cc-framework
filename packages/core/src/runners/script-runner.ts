@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import type { ScriptRuntime } from "../constants.ts";
+import { isScriptFilePath } from "../utils/file-path.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,19 +18,6 @@ export interface ScriptResult {
   exitCode: number;
 }
 
-// ---- Helpers ----
-
-/** Detect whether a script value is a file path (by extension or prefix) vs inline code. */
-function isFilePath(value: string): boolean {
-  return (
-    value.endsWith(".sh") ||
-    value.endsWith(".ts") ||
-    value.endsWith(".py") ||
-    value.startsWith("./") ||
-    value.startsWith("/")
-  );
-}
-
 // ---- Main ----
 
 /** Run a script string or file using the specified runtime and return its output. */
@@ -41,7 +29,7 @@ export async function runScript(
   timeout?: number,
 ): Promise<ScriptResult> {
   const effectiveTimeout = timeout ?? DEFAULT_TIMEOUT;
-  const isFile = isFilePath(script);
+  const isFile = isScriptFilePath(script);
 
   let cmd: string;
   let args: string[];
