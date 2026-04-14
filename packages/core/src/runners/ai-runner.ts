@@ -13,24 +13,25 @@ export async function runAi(
   cwd: string,
   resumeSessionId?: string,
 ): Promise<AiResult> {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore -- optional peer dependency, installed at runtime
+  // @ts-ignore -- optional peer dependency, resolved at runtime
   const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
   let output = "";
   let sessionId: string | undefined;
 
-  for await (const message of query({
-    prompt,
-    options: {
-      allowedTools: node.allowed_tools,
-      deniedTools: node.denied_tools,
-      model: node.model ?? workflow.model,
-      systemPrompt: node.systemPrompt,
-      cwd,
-      resume: resumeSessionId,
-    },
-  })) {
+  const options: Record<string, unknown> = {
+    allowedTools: node.allowed_tools,
+    model: node.model ?? workflow.model,
+    systemPrompt: node.systemPrompt,
+    cwd,
+    resume: resumeSessionId,
+  };
+  // denied_tools mapped to SDK option if supported
+  if (node.denied_tools) {
+    options.deniedTools = node.denied_tools;
+  }
+
+  for await (const message of query({ prompt, options })) {
     if ("type" in message && message.type === "system" && (message as any).subtype === "init") {
       sessionId = (message as any).session_id;
     }
