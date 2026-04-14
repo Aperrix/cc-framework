@@ -1,46 +1,61 @@
 import { z } from "zod";
 
-export const TriggerRuleSchema = z.enum([
+export const TRIGGER_RULES = [
   "all_success",
   "one_success",
   "none_failed_min_one_success",
   "all_done",
-]);
+] as const;
+export const TriggerRuleSchema = z.enum(TRIGGER_RULES);
 export type TriggerRule = z.infer<typeof TriggerRuleSchema>;
 
 export const WhenConditionSchema = z.string().min(1);
 export type WhenCondition = z.infer<typeof WhenConditionSchema>;
 
 export const RetrySchema = z.object({
-  max_attempts: z.number().int().min(1),
-  delay_ms: z.number().int().min(0).default(3000),
-  on_error: z.enum(["transient", "all"]).default("transient"),
+  max_attempts: z.number().int().min(1).max(5),
+  delay_ms: z.number().int().min(1000).max(60000).optional().default(3000),
+  on_error: z.enum(["transient", "all"]).optional().default("transient"),
 });
 export type Retry = z.infer<typeof RetrySchema>;
 
 export const IsolationSchema = z.object({
   strategy: z.enum(["worktree", "branch"]),
-  branch_prefix: z.string().default("ccf/"),
+  branch_prefix: z.string().optional().default("ccf/"),
 });
 export type Isolation = z.infer<typeof IsolationSchema>;
 
 export const InputDefinitionSchema = z.object({
   type: z.enum(["string", "number", "boolean"]),
-  required: z.boolean().default(false),
+  required: z.boolean().optional().default(false),
   description: z.string().optional(),
   default: z.union([z.string(), z.number(), z.boolean()]).optional(),
 });
 export type InputDefinition = z.infer<typeof InputDefinitionSchema>;
 
-export const OutputFormatSchema = z.object({
-  type: z.literal("object"),
-  properties: z.record(z.any()),
-  required: z.array(z.string()).optional(),
-});
+export const OutputFormatSchema = z.record(z.string(), z.unknown());
 export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 
+// Thinking config — matches Archon's union: adaptive | enabled (with optional budgetTokens) | disabled
+export const ThinkingConfigSchema = z.union([
+  z.object({ type: z.literal("adaptive") }),
+  z.object({
+    type: z.literal("enabled"),
+    budgetTokens: z.number().int().positive().optional(),
+  }),
+  z.object({ type: z.literal("disabled") }),
+  z.literal("adaptive"),
+  z.literal("disabled"),
+]);
+export type ThinkingConfig = z.infer<typeof ThinkingConfigSchema>;
+
+export const EffortLevelSchema = z.enum(["low", "medium", "high", "max"]);
+export type EffortLevel = z.infer<typeof EffortLevelSchema>;
+
 export const SandboxSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean().optional().default(false),
+  autoAllowBashIfSandboxed: z.boolean().optional(),
+  ignoreViolations: z.boolean().optional(),
   filesystem: z
     .object({
       denyWrite: z.array(z.string()).optional(),
@@ -54,3 +69,8 @@ export const SandboxSchema = z.object({
     .optional(),
 });
 export type Sandbox = z.infer<typeof SandboxSchema>;
+
+// Type guard for trigger rules
+export function isTriggerRule(value: unknown): value is TriggerRule {
+  return typeof value === "string" && (TRIGGER_RULES as readonly string[]).includes(value);
+}

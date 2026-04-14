@@ -2,16 +2,43 @@
 
 // Schema
 export { WorkflowSchema, type Workflow } from "./schema/workflow.ts";
-export { NodeSchema, type Node, type LoopConfig, type ApprovalConfig } from "./schema/node.ts";
 export {
+  NodeSchema,
+  type Node,
+  type LoopConfig,
+  type ApprovalConfig,
+  type PromptNode,
+  type ScriptNode,
+  type LoopNode,
+  type ApprovalNode,
+  type CancelNode,
+  isPromptNode,
+  isScriptNode,
+  isLoopNode,
+  isApprovalNode,
+  isCancelNode,
+} from "./schema/node.ts";
+export {
+  TRIGGER_RULES,
   TriggerRuleSchema,
   IsolationSchema,
   RetrySchema,
   OutputFormatSchema,
+  ThinkingConfigSchema,
+  EffortLevelSchema,
+  SandboxSchema,
+  InputDefinitionSchema,
+  WhenConditionSchema,
+  isTriggerRule,
   type TriggerRule,
+  type WhenCondition,
   type Isolation,
   type Retry,
   type OutputFormat,
+  type ThinkingConfig,
+  type EffortLevel,
+  type Sandbox,
+  type InputDefinition,
 } from "./schema/common.ts";
 export { generateWorkflowJsonSchema } from "./schema/generate-json-schema.ts";
 

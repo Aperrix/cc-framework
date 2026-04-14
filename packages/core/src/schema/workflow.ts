@@ -1,19 +1,29 @@
 import { z } from "zod";
 import { NodeSchema } from "./node.ts";
-import { IsolationSchema, InputDefinitionSchema, SandboxSchema } from "./common.ts";
+import {
+  IsolationSchema,
+  InputDefinitionSchema,
+  SandboxSchema,
+  ThinkingConfigSchema,
+  EffortLevelSchema,
+} from "./common.ts";
 
 export const WorkflowSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
+  provider: z.string().trim().min(1).optional(),
   model: z.string().optional(),
-  interactive: z.boolean().default(false),
-  effort: z.enum(["low", "medium", "high", "max"]).optional(),
-  thinking: z.union([z.literal("adaptive"), z.literal("disabled")]).optional(),
-  fallbackModel: z.string().optional(),
-  betas: z.array(z.string()).optional(),
+  modelReasoningEffort: z.enum(["minimal", "low", "medium", "high", "xhigh"]).optional(),
+  webSearchMode: z.enum(["disabled", "cached", "live"]).optional(),
+  additionalDirectories: z.array(z.string()).optional(),
+  interactive: z.boolean().optional().default(false),
+  effort: EffortLevelSchema.optional(),
+  thinking: ThinkingConfigSchema.optional(),
+  fallbackModel: z.string().min(1).optional(),
+  betas: z.array(z.string().min(1)).optional(),
   sandbox: SandboxSchema.optional(),
   isolation: IsolationSchema.optional(),
-  inputs: z.record(InputDefinitionSchema).optional(),
+  inputs: z.record(z.string(), InputDefinitionSchema).optional(),
   nodes: z.array(NodeSchema).min(1),
 });
 

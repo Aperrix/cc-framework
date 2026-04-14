@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { NodeSchema } from "../../src/schema/node.ts";
+import {
+  NodeSchema,
+  isPromptNode,
+  isScriptNode,
+  isLoopNode,
+  isApprovalNode,
+  isCancelNode,
+} from "../../src/schema/node.ts";
 
 describe("NodeSchema", () => {
   it("accepts a prompt node with inline text", () => {
@@ -13,19 +20,82 @@ describe("NodeSchema", () => {
     expect(node.prompt).toBe("investigate.md");
   });
 
-  it("accepts a bash node", () => {
-    const node = NodeSchema.parse({ id: "test", bash: "npm test" });
-    expect(node.bash).toBe("npm test");
+  it("accepts a script node (defaults to bash runtime)", () => {
+    const node = NodeSchema.parse({ id: "test", script: "npm test" });
+    expect(node.script).toBe("npm test");
+  });
+
+  it("accepts a script node with explicit runtime", () => {
+    const node = NodeSchema.parse({
+      id: "test",
+      script: "console.log('hi')",
+      runtime: "bun",
+    });
+    expect(node.script).toBe("console.log('hi')");
+    expect(node.runtime).toBe("bun");
+  });
+
+  it("accepts a script node with deps", () => {
+    const node = NodeSchema.parse({
+      id: "test",
+      script: "print('hi')",
+      runtime: "uv",
+      deps: ["requests"],
+    });
+    expect(node.deps).toEqual(["requests"]);
+  });
+
+  it("accepts a script node with timeout", () => {
+    const node = NodeSchema.parse({
+      id: "test",
+      script: "sleep 5",
+      timeout: 10000,
+    });
+    expect(node.timeout).toBe(10000);
+  });
+
+  it("rejects runtime on non-script nodes", () => {
+    expect(() => NodeSchema.parse({ id: "bad", prompt: "text", runtime: "bun" })).toThrow(
+      "'runtime' is only valid on script nodes",
+    );
+  });
+
+  it("rejects deps on non-script nodes", () => {
+    expect(() => NodeSchema.parse({ id: "bad", prompt: "text", deps: ["foo"] })).toThrow(
+      "'deps' is only valid on script nodes",
+    );
+  });
+
+  it("rejects timeout on non-script nodes", () => {
+    expect(() => NodeSchema.parse({ id: "bad", prompt: "text", timeout: 5000 })).toThrow(
+      "'timeout' is only valid on script nodes",
+    );
   });
 
   it("accepts a loop node", () => {
     const node = NodeSchema.parse({
       id: "impl",
-      loop: { prompt: "Implement the next task", until: "COMPLETE", max_iterations: 10 },
+      loop: {
+        prompt: "Implement the next task",
+        until: "COMPLETE",
+        max_iterations: 10,
+      },
     });
     expect(node.loop?.prompt).toBe("Implement the next task");
     expect(node.loop?.until).toBe("COMPLETE");
     expect(node.loop?.max_iterations).toBe(10);
+  });
+
+  it("accepts a loop node with until_bash", () => {
+    const node = NodeSchema.parse({
+      id: "impl",
+      loop: {
+        prompt: "Fix tests",
+        until: "ALL_PASS",
+        until_bash: "npm test",
+      },
+    });
+    expect(node.loop?.until_bash).toBe("npm test");
   });
 
   it("accepts an approval node", () => {
@@ -46,7 +116,7 @@ describe("NodeSchema", () => {
   });
 
   it("rejects a node with multiple types", () => {
-    expect(() => NodeSchema.parse({ id: "bad", prompt: "text", bash: "cmd" })).toThrow();
+    expect(() => NodeSchema.parse({ id: "bad", prompt: "text", script: "cmd" })).toThrow();
   });
 
   it("accepts common properties", () => {
@@ -66,5 +136,62 @@ describe("NodeSchema", () => {
     expect(node.model).toBe("opus");
     expect(node.allowed_tools).toEqual(["Read", "Edit"]);
     expect(node.retry?.max_attempts).toBe(2);
+  });
+
+  it("accepts new Archon fields", () => {
+    const node = NodeSchema.parse({
+      id: "impl",
+      prompt: "Do something",
+      provider: "anthropic",
+      systemPrompt: "You are a helpful assistant",
+      maxBudgetUsd: 0.5,
+      thinking: { type: "enabled", budgetTokens: 4096 },
+      effort: "high",
+      fallbackModel: "sonnet",
+      betas: ["interleaved-thinking"],
+      mcp: "my-server",
+      skills: ["code-review"],
+    });
+    expect(node.provider).toBe("anthropic");
+    expect(node.systemPrompt).toBe("You are a helpful assistant");
+    expect(node.maxBudgetUsd).toBe(0.5);
+    expect(node.effort).toBe("high");
+    expect(node.mcp).toBe("my-server");
+    expect(node.skills).toEqual(["code-review"]);
+  });
+});
+
+describe("type guards", () => {
+  it("isPromptNode identifies prompt nodes", () => {
+    const node = NodeSchema.parse({ id: "a", prompt: "text" });
+    expect(isPromptNode(node)).toBe(true);
+    expect(isScriptNode(node)).toBe(false);
+  });
+
+  it("isScriptNode identifies script nodes", () => {
+    const node = NodeSchema.parse({ id: "a", script: "echo hi" });
+    expect(isScriptNode(node)).toBe(true);
+    expect(isPromptNode(node)).toBe(false);
+  });
+
+  it("isLoopNode identifies loop nodes", () => {
+    const node = NodeSchema.parse({
+      id: "a",
+      loop: { prompt: "go", until: "done" },
+    });
+    expect(isLoopNode(node)).toBe(true);
+  });
+
+  it("isApprovalNode identifies approval nodes", () => {
+    const node = NodeSchema.parse({
+      id: "a",
+      approval: { message: "approve?" },
+    });
+    expect(isApprovalNode(node)).toBe(true);
+  });
+
+  it("isCancelNode identifies cancel nodes", () => {
+    const node = NodeSchema.parse({ id: "a", cancel: "stop" });
+    expect(isCancelNode(node)).toBe(true);
   });
 });
