@@ -1,0 +1,23 @@
+{
+  "name": "@cc-framework/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vp test",
+    "build": "vp build"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "vite-plus": "catalog:"
+  }
+}
