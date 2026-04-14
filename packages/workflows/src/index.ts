@@ -81,6 +81,13 @@ export { generateWorkflowJsonSchema } from "./schema/generate-json-schema.ts";
 
 // ---- Utils ----
 export { isFilePath, isPromptFilePath, isScriptFilePath } from "./utils/file-path.ts";
+export { formatDuration, parseDbTimestamp } from "./utils/duration.ts";
+export { formatToolCall } from "./utils/tool-formatter.ts";
+export {
+  withIdleTimeout,
+  IdleTimeoutError,
+  DEFAULT_IDLE_TIMEOUT_MS,
+} from "./utils/idle-timeout.ts";
 
 // ---- Parser ----
 export { parseWorkflow } from "./parser/parse-workflow.ts";
@@ -163,6 +170,30 @@ export {
   cleanupOrphanedWorktrees,
   type IsolationEnvironment,
 } from "./isolation/isolation.ts";
+
+// ---- Router ----
+export {
+  resolveWorkflowByName,
+  parseWorkflowInvocation,
+  type WorkflowInvocation,
+  type WorkflowMatch,
+} from "./router.ts";
+
+// ---- Validator ----
+export {
+  validateWorkflowResources,
+  type ValidationIssue,
+  type WorkflowValidationResult,
+} from "./validator.ts";
+
+// ---- Validation Parser ----
+export {
+  parseValidationResults,
+  type ValidationResult as ParsedValidationResult,
+} from "./validation-parser.ts";
+
+// ---- Store Types (interface) ----
+export type { IWorkflowStore, WorkflowRunRecord, NodeOutputRecord } from "./store/types.ts";
 
 // ---- Discovery ----
 export { discoverWorkflows, findWorkflow, type DiscoveredWorkflow } from "./discovery/workflows.ts";
