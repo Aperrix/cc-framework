@@ -165,3 +165,40 @@ export async function cleanupOrphanedWorktrees(
 
   return cleaned;
 }
+
+/** Maximum number of concurrent worktrees before cleanup kicks in. */
+const MAX_WORKTREES = 10;
+
+/**
+ * Ensure there's room for a new worktree by cleaning up old ones.
+ * Returns the number of worktrees removed.
+ */
+export async function cleanupToMakeRoom(
+  cwd: string,
+  branchPrefix: string = "ccf/",
+  maxWorktrees: number = MAX_WORKTREES,
+): Promise<number> {
+  const worktrees = await listWorktrees(cwd, branchPrefix);
+  if (worktrees.length < maxWorktrees) return 0;
+
+  // Sort by path (oldest first — worktrees are created sequentially)
+  const toRemove = worktrees.slice(0, worktrees.length - maxWorktrees + 1);
+  let removed = 0;
+
+  for (const wt of toRemove) {
+    try {
+      await cleanupIsolation({
+        strategy: "worktree",
+        branchName: wt.branch,
+        worktreePath: wt.path,
+        originalCwd: cwd,
+        workingDirectory: wt.path,
+      });
+      removed++;
+    } catch {
+      // Best effort — skip worktrees that can't be removed
+    }
+  }
+
+  return removed;
+}

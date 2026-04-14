@@ -199,6 +199,7 @@ export {
   cleanupIsolation,
   listWorktrees,
   cleanupOrphanedWorktrees,
+  cleanupToMakeRoom,
   type IsolationEnvironment,
 } from "./isolation/isolation.ts";
 

@@ -73,6 +73,25 @@ export interface ResolvedConfig {
   };
 }
 
+/** Safe subset of ResolvedConfig for web clients. Excludes filesystem paths. */
+export interface SafeConfig {
+  model: string;
+  effort: EffortLevel;
+  isolation: {
+    strategy: IsolationStrategy;
+    branch_prefix: string;
+  };
+}
+
+/** Extract SafeConfig from ResolvedConfig. */
+export function toSafeConfig(config: ResolvedConfig): SafeConfig {
+  return {
+    model: config.model,
+    effort: config.effort,
+    isolation: config.isolation,
+  };
+}
+
 /** Built-in defaults that apply when no config is specified. */
 export const CONFIG_DEFAULTS: ResolvedConfig = {
   model: "sonnet",
