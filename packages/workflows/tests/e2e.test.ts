@@ -7,7 +7,7 @@ import { StoreQueries } from "../src/store/queries.ts";
 import { WorkflowEventBus } from "../src/events/event-bus.ts";
 import { WorkflowExecutor } from "../src/executor/executor.ts";
 import type { Database } from "../src/store/database.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../src/deps.ts";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { unlinkSync } from "node:fs";
@@ -15,18 +15,16 @@ import { unlinkSync } from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, "fixtures");
 
-function makeConfig(projectRoot: string): ResolvedConfig {
+function makeConfig(projectRoot: string): WorkflowConfig {
   return {
     model: "sonnet",
     effort: "high",
     isolation: { strategy: "branch", branch_prefix: "ccf/" },
     paths: {
       embeddedWorkflows: "",
-      globalHome: "",
       globalWorkflows: "",
       database: ":memory:",
       projectRoot,
-      projectConfig: join(projectRoot, ".cc-framework"),
       projectWorkflows: join(projectRoot, ".cc-framework", "workflows"),
       projectPrompts: join(projectRoot, "prompts"),
       projectScripts: join(projectRoot, ".cc-framework", "scripts"),
@@ -46,7 +44,7 @@ function cleanRetryStateFile(): void {
 describe("E2E: Sequential workflow", () => {
   let db: Database;
   let store: StoreQueries;
-  let config: ResolvedConfig;
+  let config: WorkflowConfig;
 
   beforeEach(() => {
     db = createDatabase(":memory:");

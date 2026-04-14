@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
 import { discoverWorkflows, findWorkflow } from "../../src/discovery/workflows.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../../src/deps.ts";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,18 +9,16 @@ function makeConfig(
   projectRoot: string,
   globalWorkflows: string,
   embeddedWorkflows: string = "",
-): ResolvedConfig {
+): WorkflowConfig {
   return {
     model: "sonnet",
     effort: "high",
     isolation: { strategy: "branch", branch_prefix: "ccf/" },
     paths: {
       embeddedWorkflows,
-      globalHome: "",
       globalWorkflows,
       database: "",
       projectRoot,
-      projectConfig: join(projectRoot, ".cc-framework"),
       projectWorkflows: join(projectRoot, ".cc-framework", "workflows"),
       projectPrompts: join(projectRoot, ".cc-framework", "prompts"),
       projectScripts: join(projectRoot, ".cc-framework", "scripts"),

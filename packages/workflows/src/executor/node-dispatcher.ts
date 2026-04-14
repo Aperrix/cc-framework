@@ -10,7 +10,7 @@ import { runCancel } from "../runners/cancel-runner.ts";
 import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import type { WorkflowEventBus } from "../events/event-bus.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
 import {
   isPromptNode,
   isScriptNode,
@@ -32,7 +32,7 @@ export interface DispatchResult {
 
 export interface DispatchContext {
   workflow: Workflow;
-  config: ResolvedConfig;
+  config: WorkflowConfig;
   runId: string;
   nodeId: string;
   cwd: string;

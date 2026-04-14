@@ -2,7 +2,7 @@
 
 import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
 
 // ---- Types ----
 
@@ -21,7 +21,7 @@ const DEFAULT_MODEL = "sonnet";
 export function resolveModel(
   node: Node,
   workflow: Workflow,
-  config: ResolvedConfig,
+  config: WorkflowConfig,
 ): ResolvedModel {
   if (node.model) return { model: node.model, source: "node" };
   if (workflow.model) return { model: workflow.model, source: "workflow" };

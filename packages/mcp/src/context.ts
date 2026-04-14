@@ -1,13 +1,7 @@
 /** MCP server context — initializes config, database, store, and session. */
 
-import {
-  loadConfig,
-  ensureGlobalHome,
-  createDatabase,
-  StoreQueries,
-  type ResolvedConfig,
-  type Database,
-} from "@cc-framework/workflows";
+import { loadConfig, ensureGlobalHome, type ResolvedConfig } from "@cc-framework/core";
+import { DEFAULTS_DIR, createDatabase, StoreQueries, type Database } from "@cc-framework/workflows";
 
 export interface McpContext {
   config: ResolvedConfig;
@@ -20,7 +14,7 @@ export interface McpContext {
 /** Initialize server context. Called once at startup. */
 export async function createMcpContext(cwd: string): Promise<McpContext> {
   await ensureGlobalHome();
-  const config = await loadConfig(cwd);
+  const config = await loadConfig(cwd, DEFAULTS_DIR);
   const db = createDatabase(config.paths.database);
   const store = new StoreQueries(db);
 

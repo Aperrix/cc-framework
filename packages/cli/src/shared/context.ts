@@ -1,13 +1,7 @@
 /** Shared CLI context — initializes config, database, store, and session. */
 
-import {
-  loadConfig,
-  ensureGlobalHome,
-  createDatabase,
-  StoreQueries,
-  type ResolvedConfig,
-  type Database,
-} from "@cc-framework/workflows";
+import { loadConfig, ensureGlobalHome, type ResolvedConfig } from "@cc-framework/core";
+import { DEFAULTS_DIR, createDatabase, StoreQueries, type Database } from "@cc-framework/workflows";
 
 export interface CliContext {
   config: ResolvedConfig;
@@ -23,7 +17,7 @@ export interface CliContext {
  */
 export async function createCliContext(cwd: string): Promise<CliContext> {
   await ensureGlobalHome();
-  const config = await loadConfig(cwd);
+  const config = await loadConfig(cwd, DEFAULTS_DIR);
   const db = createDatabase(config.paths.database);
   const store = new StoreQueries(db);
 

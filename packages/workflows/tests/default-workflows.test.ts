@@ -3,23 +3,21 @@ import { parseWorkflow } from "../src/parser/parse-workflow.ts";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readdir } from "node:fs/promises";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../src/deps.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const defaultsDir = join(__dirname, "..", "src", "defaults");
 
-function makeConfig(): ResolvedConfig {
+function makeConfig(): WorkflowConfig {
   return {
     model: "sonnet",
     effort: "high",
     isolation: { strategy: "branch", branch_prefix: "ccf/" },
     paths: {
       embeddedWorkflows: "",
-      globalHome: "",
       globalWorkflows: "",
       database: "",
       projectRoot: defaultsDir,
-      projectConfig: join(defaultsDir, ".cc-framework"),
       projectWorkflows: join(defaultsDir, ".cc-framework", "workflows"),
       projectPrompts: join(defaultsDir, "prompts"),
       projectScripts: join(defaultsDir, ".cc-framework", "scripts"),

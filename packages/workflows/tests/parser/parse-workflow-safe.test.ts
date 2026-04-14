@@ -4,23 +4,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../../src/deps.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, "..", "fixtures");
 
-function makeConfig(projectRoot: string): ResolvedConfig {
+function makeConfig(projectRoot: string): WorkflowConfig {
   return {
     model: "sonnet",
     effort: "high",
     isolation: { strategy: "branch", branch_prefix: "ccf/" },
     paths: {
       embeddedWorkflows: "",
-      globalHome: "",
       globalWorkflows: "",
       database: "",
       projectRoot,
-      projectConfig: join(projectRoot, ".cc-framework"),
       projectWorkflows: join(projectRoot, ".cc-framework", "workflows"),
       projectPrompts: join(projectRoot, "prompts"),
       projectScripts: join(projectRoot, ".cc-framework", "scripts"),

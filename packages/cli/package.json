@@ -10,6 +10,7 @@
     "test": "vp test"
   },
   "dependencies": {
+    "@cc-framework/core": "workspace:*",
     "@cc-framework/workflows": "workspace:*"
   },
   "devDependencies": {

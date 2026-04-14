@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join, isAbsolute } from "node:path";
 
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
 import { isPromptFilePath } from "../utils/file-path.ts";
 
 /**
@@ -16,7 +16,7 @@ import { isPromptFilePath } from "../utils/file-path.ts";
  */
 export async function resolvePromptWithConfig(
   value: string,
-  config: ResolvedConfig,
+  config: WorkflowConfig,
   workflowDir?: string,
 ): Promise<string> {
   if (!isPromptFilePath(value)) {

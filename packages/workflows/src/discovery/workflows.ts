@@ -3,7 +3,7 @@
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
 
 // ---- Types ----
 
@@ -42,7 +42,7 @@ function nameFromPath(filePath: string): string {
  * Discover all available workflows, merging three sources.
  * Later sources override earlier ones when names collide (project > global > embedded).
  */
-export async function discoverWorkflows(config: ResolvedConfig): Promise<DiscoveredWorkflow[]> {
+export async function discoverWorkflows(config: WorkflowConfig): Promise<DiscoveredWorkflow[]> {
   const byName = new Map<string, DiscoveredWorkflow>();
 
   // Stage 1: Embedded defaults (lowest priority)
@@ -72,7 +72,7 @@ export async function discoverWorkflows(config: ResolvedConfig): Promise<Discove
  */
 export async function findWorkflow(
   name: string,
-  config: ResolvedConfig,
+  config: WorkflowConfig,
 ): Promise<DiscoveredWorkflow | null> {
   const all = await discoverWorkflows(config);
   return all.find((w) => w.name === name) ?? null;

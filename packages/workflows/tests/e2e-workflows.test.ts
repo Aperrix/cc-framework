@@ -12,25 +12,23 @@ import { StoreQueries } from "../src/store/queries.ts";
 import { WorkflowEventBus } from "../src/events/event-bus.ts";
 import { WorkflowExecutor } from "../src/executor/executor.ts";
 import type { Database } from "../src/store/database.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../src/deps.ts";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dirname, "fixtures");
 
-function makeConfig(): ResolvedConfig {
+function makeConfig(): WorkflowConfig {
   return {
     model: "sonnet",
     effort: "high",
     isolation: { strategy: "branch", branch_prefix: "ccf/" },
     paths: {
       embeddedWorkflows: "",
-      globalHome: "",
       globalWorkflows: "",
       database: ":memory:",
       projectRoot: fixturesDir,
-      projectConfig: join(fixturesDir, ".cc-framework"),
       projectWorkflows: join(fixturesDir, ".cc-framework", "workflows"),
       projectPrompts: join(fixturesDir, "prompts"),
       projectScripts: join(fixturesDir, ".cc-framework", "scripts"),

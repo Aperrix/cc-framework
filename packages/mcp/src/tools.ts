@@ -1,7 +1,7 @@
 /** MCP tool definitions for cc-framework. */
 
+import { initProject } from "@cc-framework/core";
 import {
-  initProject,
   discoverWorkflows,
   findWorkflow,
   parseWorkflow,

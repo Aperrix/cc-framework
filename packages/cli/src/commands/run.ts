@@ -1,11 +1,11 @@
 /** ccf run <workflow> — run a workflow. */
 
+import type { ResolvedConfig } from "@cc-framework/core";
 import {
   findWorkflow,
   parseWorkflow,
   WorkflowExecutor,
   WorkflowEventBus,
-  type ResolvedConfig,
   type StoreQueries,
   logWorkflowStart,
   logWorkflowComplete,

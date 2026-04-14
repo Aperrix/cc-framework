@@ -11,7 +11,7 @@ import type { Node } from "../schema/node.ts";
 import { WorkflowSchema } from "../schema/workflow.ts";
 import { NodeSchema } from "../schema/node.ts";
 import { resolvePromptWithConfig } from "../discovery/prompts.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
 
 /** A single parse/validation error with optional node context. */
 export interface ParseError {
@@ -41,7 +41,7 @@ const WorkflowShellSchema = WorkflowSchema.omit({ nodes: true }).extend({
  */
 export async function parseWorkflowSafe(
   filePath: string,
-  config: ResolvedConfig,
+  config: WorkflowConfig,
 ): Promise<ParseResult> {
   // --- read & parse YAML ---
   let raw: string;
@@ -160,7 +160,7 @@ export async function parseWorkflowSafe(
  * Prompt paths are resolved relative to the workflow YAML's own directory,
  * then project prompts, then project root.
  */
-export async function parseWorkflow(filePath: string, config: ResolvedConfig): Promise<Workflow> {
+export async function parseWorkflow(filePath: string, config: WorkflowConfig): Promise<Workflow> {
   const result = await parseWorkflowSafe(filePath, config);
   if (result.errors.length > 0) {
     throw new Error(

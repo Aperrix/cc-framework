@@ -33,8 +33,8 @@ import type { WorkflowEventBus } from "../events/event-bus.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import type { RunStatus } from "../constants.ts";
 import type { Node } from "../schema/node.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
-import { CONFIG_DEFAULTS } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
+import { WORKFLOW_DEFAULTS } from "../deps.ts";
 
 export interface RunResult {
   runId: string;
@@ -54,7 +54,7 @@ export class WorkflowExecutor {
     workflow: Workflow,
     cwd: string,
     args?: string,
-    config?: ResolvedConfig,
+    config?: WorkflowConfig,
     sessionId?: string,
   ): Promise<RunResult> {
     // Phase 1: Persist workflow and create run record
@@ -74,7 +74,7 @@ export class WorkflowExecutor {
       args,
       {}, // No prior node outputs
       new Set(), // No completed nodes
-      config ?? CONFIG_DEFAULTS,
+      config ?? WORKFLOW_DEFAULTS,
       sessionId,
     );
   }
@@ -88,7 +88,7 @@ export class WorkflowExecutor {
     runId: string,
     cwd: string,
     args?: string,
-    config?: ResolvedConfig,
+    config?: WorkflowConfig,
     sessionId?: string,
   ): Promise<RunResult> {
     // Load already-completed node outputs
@@ -105,7 +105,7 @@ export class WorkflowExecutor {
       args,
       nodeOutputs,
       completedNodeIds,
-      config ?? CONFIG_DEFAULTS,
+      config ?? WORKFLOW_DEFAULTS,
       sessionId,
     );
   }
@@ -122,7 +122,7 @@ export class WorkflowExecutor {
     args: string | undefined,
     nodeOutputs: Record<string, { output: string }>,
     completedNodeIds: Set<string>,
-    config: ResolvedConfig,
+    config: WorkflowConfig,
     sessionId?: string,
   ): Promise<RunResult> {
     const startTime = Date.now();
@@ -286,7 +286,7 @@ export class WorkflowExecutor {
     nodeOutputs: Record<string, { output: string }>,
     nodeStatuses: Record<string, { completed: boolean; failed: boolean; skipped: boolean }>,
     builtins: Record<string, string>,
-    config: ResolvedConfig,
+    config: WorkflowConfig,
     resumeSessionId?: string,
   ): Promise<void> {
     // Check trigger rule against dependency statuses

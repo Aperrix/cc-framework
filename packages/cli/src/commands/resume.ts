@@ -1,11 +1,11 @@
 /** ccf resume <runId> — resume a paused or failed run. */
 
+import type { ResolvedConfig } from "@cc-framework/core";
 import {
   findWorkflow,
   parseWorkflow,
   WorkflowExecutor,
   WorkflowEventBus,
-  type ResolvedConfig,
   type StoreQueries,
 } from "@cc-framework/workflows";
 import { formatRunStatus } from "../shared/format.ts";

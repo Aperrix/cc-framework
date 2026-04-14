@@ -4,7 +4,7 @@ import { readdir } from "node:fs/promises";
 import { join, basename, extname } from "node:path";
 
 import type { ScriptRuntime } from "../constants.ts";
-import type { ResolvedConfig } from "@cc-framework/core";
+import type { WorkflowConfig } from "../deps.ts";
 
 // ---- Types ----
 
@@ -52,7 +52,7 @@ function runtimeFromPath(filePath: string): ScriptRuntime {
  * Discover all available scripts in the project scripts directory.
  * Runtime is auto-detected from file extension: .sh/.bash → bash, .ts/.js → bun, .py → uv.
  */
-export async function discoverScripts(config: ResolvedConfig): Promise<DiscoveredScript[]> {
+export async function discoverScripts(config: WorkflowConfig): Promise<DiscoveredScript[]> {
   const byName = new Map<string, DiscoveredScript>();
 
   for (const path of await listScriptFiles(config.paths.projectScripts)) {
@@ -68,7 +68,7 @@ export async function discoverScripts(config: ResolvedConfig): Promise<Discovere
  */
 export async function findScript(
   name: string,
-  config: ResolvedConfig,
+  config: WorkflowConfig,
 ): Promise<DiscoveredScript | null> {
   const all = await discoverScripts(config);
   return all.find((s) => s.name === name) ?? null;

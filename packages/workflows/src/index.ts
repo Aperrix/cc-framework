@@ -3,16 +3,8 @@
 // ---- Defaults ----
 export { DEFAULTS_DIR } from "./defaults/index.ts";
 
-// ---- Config (wrapper + re-exports from core) ----
-import { loadConfig as coreLoadConfig } from "@cc-framework/core";
-import { DEFAULTS_DIR } from "./defaults/index.ts";
-
-export async function loadConfig(projectRoot: string) {
-  return coreLoadConfig(projectRoot, DEFAULTS_DIR);
-}
-
-export type { ResolvedConfig, GlobalConfig, ProjectConfig } from "@cc-framework/core";
-export { CONFIG_DEFAULTS, initProject, ensureGlobalHome } from "@cc-framework/core";
+// ---- Deps (narrow config interface for the workflow engine) ----
+export { WORKFLOW_DEFAULTS, type WorkflowConfig, type WorkflowPaths } from "./deps.ts";
 
 // ---- Logging ----
 export {

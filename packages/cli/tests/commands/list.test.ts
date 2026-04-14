@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
 import { commandList } from "../../src/commands/list.ts";
-import type { ResolvedConfig } from "@cc-framework/workflows";
+import type { ResolvedConfig } from "@cc-framework/core";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
