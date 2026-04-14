@@ -5,8 +5,6 @@
     "": {
       "name": "cc-framework",
       "devDependencies": {
-        "@secretlint/core": "^11.7.1",
-        "@secretlint/secretlint-rule-preset-recommend": "^11.7.1",
         "vite-plus": "catalog:",
       },
     },
@@ -62,6 +60,10 @@
     "packages/utils": {
       "name": "@cc-framework/utils",
       "version": "0.0.0",
+      "dependencies": {
+        "@secretlint/core": "^11.7.1",
+        "@secretlint/secretlint-rule-preset-recommend": "^11.7.1",
+      },
       "devDependencies": {
         "vite-plus": "catalog:",
       },
