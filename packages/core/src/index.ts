@@ -57,7 +57,7 @@ export { createDatabase, type Database } from "./store/database.ts";
 export { StoreQueries } from "./store/queries.ts";
 
 // Runners
-export { runShell, type ShellResult } from "./runners/shell-runner.ts";
+export { runScript, type ScriptResult } from "./runners/script-runner.ts";
 export { runAi, type AiResult } from "./runners/ai-runner.ts";
 export { runLoop, type LoopResult } from "./runners/loop-runner.ts";
 export {
