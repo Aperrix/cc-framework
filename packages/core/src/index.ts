@@ -78,6 +78,7 @@ export {
   type ApprovalResult,
 } from "./runners/approval-runner.ts";
 export { runCancel, WorkflowCancelledError } from "./runners/cancel-runner.ts";
+export { runCodeMode, extractCode, type CodeModeResult } from "./runners/code-mode-runner.ts";
 export {
   classifyError,
   isRetryable,

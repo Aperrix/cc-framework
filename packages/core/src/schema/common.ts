@@ -46,7 +46,7 @@ export type InputDefinition = z.infer<typeof InputDefinitionSchema>;
 export const OutputFormatSchema = z.record(z.string(), z.unknown());
 export type OutputFormat = z.infer<typeof OutputFormatSchema>;
 
-// Thinking config — matches Archon's union: adaptive | enabled (with optional budgetTokens) | disabled
+// Thinking config — adaptive | enabled (with optional budgetTokens) | disabled
 export const ThinkingConfigSchema = z.union([
   z.object({ type: z.literal("adaptive") }),
   z.object({

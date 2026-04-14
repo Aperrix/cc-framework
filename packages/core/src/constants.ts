@@ -28,6 +28,9 @@ export type ContextMode = (typeof CONTEXT_MODES)[number];
 export const SCRIPT_RUNTIMES = ["bash", "bun", "uv"] as const;
 export type ScriptRuntime = (typeof SCRIPT_RUNTIMES)[number];
 
+export const EXECUTION_MODES = ["agent", "code"] as const;
+export type ExecutionMode = (typeof EXECUTION_MODES)[number];
+
 export const REASONING_EFFORTS = ["minimal", "low", "medium", "high", "xhigh"] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 

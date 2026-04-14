@@ -54,9 +54,36 @@ describe("NodeSchema", () => {
     expect(node.timeout).toBe(10000);
   });
 
-  it("rejects runtime on non-script nodes", () => {
+  it("accepts execution: 'code' on prompt nodes", () => {
+    const node = NodeSchema.parse({ id: "gen", prompt: "Generate code", execution: "code" });
+    expect(node.execution).toBe("code");
+  });
+
+  it("accepts execution: 'code' with runtime on prompt nodes", () => {
+    const node = NodeSchema.parse({
+      id: "gen",
+      prompt: "Generate code",
+      execution: "code",
+      runtime: "bun",
+    });
+    expect(node.execution).toBe("code");
+    expect(node.runtime).toBe("bun");
+  });
+
+  it("accepts execution: 'agent' on prompt nodes", () => {
+    const node = NodeSchema.parse({ id: "gen", prompt: "Do something", execution: "agent" });
+    expect(node.execution).toBe("agent");
+  });
+
+  it("rejects execution on non-prompt nodes", () => {
+    expect(() => NodeSchema.parse({ id: "s", script: "echo hi", execution: "code" })).toThrow(
+      "'execution' is only valid on prompt nodes",
+    );
+  });
+
+  it("rejects runtime on non-script nodes without execution: code", () => {
     expect(() => NodeSchema.parse({ id: "bad", prompt: "text", runtime: "bun" })).toThrow(
-      "'runtime' is only valid on script nodes",
+      "'runtime' is only valid on script nodes or prompt nodes with execution: 'code'",
     );
   });
 
@@ -138,7 +165,7 @@ describe("NodeSchema", () => {
     expect(node.retry?.max_attempts).toBe(2);
   });
 
-  it("accepts new Archon fields", () => {
+  it("accepts new fields", () => {
     const node = NodeSchema.parse({
       id: "impl",
       prompt: "Do something",

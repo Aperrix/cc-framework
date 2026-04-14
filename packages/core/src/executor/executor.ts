@@ -7,6 +7,7 @@ import { buildDag } from "../dag/build-dag.ts";
 import { substituteVariables } from "../variables/substitute.ts";
 import { runScript } from "../runners/script-runner.ts";
 import { runAi } from "../runners/ai-runner.ts";
+import { runCodeMode } from "../runners/code-mode-runner.ts";
 import { runLoop } from "../runners/loop-runner.ts";
 import { requestApproval, WorkflowPausedError } from "../runners/approval-runner.ts";
 import { runCancel, WorkflowCancelledError } from "../runners/cancel-runner.ts";
@@ -302,14 +303,27 @@ export class WorkflowExecutor {
           }
         } else if (isPromptNode(node)) {
           const prompt = substituteVariables(node.prompt, builtins, nodeOutputs);
-          const result = await runAi(prompt, node, workflow, cwd, resumeSessionId);
-          output = result.output;
-          // Store session ID for threading to the next sequential node
-          this.lastNodeSessionId = result.sessionId;
-          // If the SDK returned an error, throw it (retry logic will handle it)
-          // but the partial output is already captured in `output` for potential use
-          if (result.error) {
-            throw new Error(`AI node error (partial output preserved): ${result.error}`);
+
+          if (node.execution === "code") {
+            // Code Mode: LLM generates a script, we execute it
+            const result = await runCodeMode(prompt, node, workflow, cwd, builtins);
+            output = result.output;
+            // Store generated code as an event for audit/debugging
+            this.store.recordEvent(runId, nodeId, "node:code_generated", result.generatedCode);
+            if (result.error) {
+              throw new Error(result.error);
+            }
+          } else {
+            // Agent Mode (default): full agent loop with tool calls
+            const result = await runAi(prompt, node, workflow, cwd, resumeSessionId);
+            output = result.output;
+            // Store session ID for threading to the next sequential node
+            this.lastNodeSessionId = result.sessionId;
+            // If the SDK returned an error, throw it (retry logic will handle it)
+            // but the partial output is already captured in `output` for potential use
+            if (result.error) {
+              throw new Error(`AI node error (partial output preserved): ${result.error}`);
+            }
           }
         } else if (isLoopNode(node)) {
           const result = await runLoop(node, workflow, cwd, runAi);

@@ -11,11 +11,11 @@ import {
   ThinkingConfigSchema,
   EffortLevelSchema,
 } from "./common.ts";
-import { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
+import { CONTEXT_MODES, SCRIPT_RUNTIMES, EXECUTION_MODES } from "../constants.ts";
 
 // Re-export constants and types from centralized module
-export { CONTEXT_MODES, SCRIPT_RUNTIMES } from "../constants.ts";
-export type { ContextMode, ScriptRuntime } from "../constants.ts";
+export { CONTEXT_MODES, SCRIPT_RUNTIMES, EXECUTION_MODES } from "../constants.ts";
+export type { ContextMode, ScriptRuntime, ExecutionMode } from "../constants.ts";
 
 // ---- Sub-schemas ----
 
@@ -80,6 +80,8 @@ const NodeTypesSchema = z.object({
   runtime: z.enum(SCRIPT_RUNTIMES).optional(),
   deps: z.array(z.string()).optional(),
   timeout: z.number().int().positive().optional(),
+  // Prompt-specific fields
+  execution: z.enum(EXECUTION_MODES).optional(),
 });
 
 export const NodeSchema = NodeBaseSchema.extend(NodeTypesSchema.shape).superRefine((data, ctx) => {
@@ -97,11 +99,22 @@ export const NodeSchema = NodeBaseSchema.extend(NodeTypesSchema.shape).superRefi
       message: "Node must have exactly one type — found multiple",
     });
   }
-  // runtime and deps only valid with script
-  if (data.runtime !== undefined && data.script === undefined) {
+  // execution is only valid on prompt nodes
+  if (data.execution !== undefined && data.prompt === undefined) {
     ctx.addIssue({
       code: "custom",
-      message: "'runtime' is only valid on script nodes",
+      message: "'execution' is only valid on prompt nodes",
+    });
+  }
+  // runtime valid with script OR with prompt+execution:code
+  if (
+    data.runtime !== undefined &&
+    data.script === undefined &&
+    !(data.prompt !== undefined && data.execution === "code")
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: "'runtime' is only valid on script nodes or prompt nodes with execution: 'code'",
     });
   }
   if (data.deps !== undefined && data.script === undefined) {
