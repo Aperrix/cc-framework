@@ -109,6 +109,35 @@ describe("orchestrator", () => {
       const result = handleSessionTransition("first-message", store, tempDir);
       expect(result).toBe(sessionId);
     });
+
+    it("returns a session for isolation-changed trigger", () => {
+      store.createSession(tempDir);
+      const result = handleSessionTransition("isolation-changed", store, tempDir);
+      // Deactivating triggers return a valid session ID (existing until next creates new)
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("returns a session for reset-requested trigger", () => {
+      store.createSession(tempDir);
+      const result = handleSessionTransition("reset-requested", store, tempDir);
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("returns a session for worktree-removed trigger", () => {
+      store.createSession(tempDir);
+      const result = handleSessionTransition("worktree-removed", store, tempDir);
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("creates new session when no active session exists for deactivating trigger", () => {
+      // No session created beforehand
+      const result = handleSessionTransition("isolation-changed", store, tempDir);
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThan(0);
+    });
   });
 
   // ---- handleMessage ----
@@ -152,6 +181,15 @@ describe("orchestrator", () => {
       expect(result.type).toBe("workflow_started");
       if (result.type === "workflow_started") {
         expect(result.workflowName).toBe("fix-issue");
+      }
+    });
+
+    it("returns error when workflow parsing fails", async () => {
+      await writeWorkflow("broken", "name: broken\nnodes: invalid_yaml_value");
+      const result = await handleMessage("broken", makeCtx());
+      expect(result.type).toBe("error");
+      if (result.type === "error") {
+        expect(result.message).toContain("Orchestrator error");
       }
     });
 

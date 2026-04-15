@@ -4,6 +4,8 @@ import {
   unregisterProvider,
   getRegisteredProviders,
   getRegistration,
+  getAgentProvider,
+  getProviderCapabilities,
   isRegisteredProvider,
   inferProviderFromModel,
   isModelCompatible,
@@ -78,6 +80,27 @@ describe("Provider Registry", () => {
   describe("getRegistration", () => {
     it("throws for unregistered provider", () => {
       expect(() => getRegistration("missing")).toThrow(/Unknown provider/);
+    });
+  });
+
+  describe("getAgentProvider", () => {
+    it("returns factory result for registered provider", () => {
+      const reg = makeProvider("my-provider", [/^my-/]);
+      registerProvider(reg);
+      const provider = getAgentProvider("my-provider");
+      expect(provider.id).toBe("my-provider");
+    });
+
+    it("throws for unknown provider", () => {
+      expect(() => getAgentProvider("nonexistent")).toThrow(/Unknown provider/);
+    });
+  });
+
+  describe("getProviderCapabilities", () => {
+    it("returns capabilities for registered provider", () => {
+      registerProvider(makeProvider("cap-test", [/^cap-/]));
+      const caps = getProviderCapabilities("cap-test");
+      expect(caps).toEqual(CODEX_CAPABILITIES);
     });
   });
 

@@ -137,6 +137,126 @@ describe("StoreQueries", () => {
     expect(store.findResumableRun("nonexistent")).toBeNull();
   });
 
+  // ---- Pause / Resume ----
+
+  it("pauses a running run", () => {
+    const wfId = store.upsertWorkflow("pause-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+
+    store.pauseRun(runId, {
+      nodeId: "gate-1",
+      message: "Approve?",
+      captureResponse: false,
+      rejectionCount: 0,
+    });
+
+    const run = store.getRun(runId);
+    expect(run!.status).toBe("paused");
+  });
+
+  it("resumes a paused run", () => {
+    const wfId = store.upsertWorkflow("resume-run-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+    store.pauseRun(runId, {
+      nodeId: "gate-1",
+      message: "Approve?",
+      captureResponse: false,
+      rejectionCount: 0,
+    });
+
+    store.resumeRun(runId);
+
+    expect(store.getRun(runId)!.status).toBe("running");
+  });
+
+  // ---- Approval Context ----
+
+  it("retrieves approval context from events", () => {
+    const wfId = store.upsertWorkflow("approval-ctx-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.pauseRun(runId, {
+      nodeId: "gate-1",
+      message: "Please approve",
+      captureResponse: false,
+      rejectionCount: 0,
+    });
+
+    const ctx = store.getApprovalContext(runId);
+    expect(ctx).not.toBeNull();
+    expect(ctx!.nodeId).toBe("gate-1");
+    expect(ctx!.message).toBe("Please approve");
+  });
+
+  it("returns null when no approval event exists", () => {
+    const wfId = store.upsertWorkflow("no-approval-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+
+    expect(store.getApprovalContext(runId)).toBeNull();
+  });
+
+  it("returns null when approval event payload is invalid JSON", () => {
+    const wfId = store.upsertWorkflow("bad-json-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    // Manually record an event with invalid JSON payload
+    store.recordEvent(runId, null, "approval:paused", "not-valid-json{{{");
+
+    expect(store.getApprovalContext(runId)).toBeNull();
+  });
+
+  // ---- Session Operations ----
+
+  it("updates session activity timestamp", () => {
+    const sessionId = store.createSession("/tmp/project");
+    const before = store.getSession(sessionId)!.lastActivity;
+
+    // We can't easily mock Date.now in this setup, so we just verify the method runs
+    store.updateSessionActivity(sessionId);
+
+    const after = store.getSession(sessionId)!.lastActivity;
+    expect(after).toBeGreaterThanOrEqual(before);
+  });
+
+  it("creates a run linked to a session", () => {
+    const wfId = store.upsertWorkflow("session-run-wf", "custom", "hash");
+    const sessionId = store.createSession("/tmp/project");
+
+    const runId = store.createRunInSession(wfId, sessionId, '{"arg": "val"}');
+
+    const run = store.getRun(runId);
+    expect(run).not.toBeNull();
+    expect(run!.sessionId).toBe(sessionId);
+    expect(run!.arguments).toBe('{"arg": "val"}');
+    expect(run!.status).toBe("pending");
+  });
+
+  it("createRunInSession updates session activity", () => {
+    const wfId = store.upsertWorkflow("session-act-wf", "custom", "hash");
+    const sessionId = store.createSession("/tmp/project");
+    const before = store.getSession(sessionId)!.lastActivity;
+
+    store.createRunInSession(wfId, sessionId);
+
+    const after = store.getSession(sessionId)!.lastActivity;
+    expect(after).toBeGreaterThanOrEqual(before);
+  });
+
+  it("returns session runs ordered chronologically", () => {
+    const wfId = store.upsertWorkflow("session-runs-wf", "custom", "hash");
+    const sessionId = store.createSession("/tmp/project");
+
+    const run1 = store.createRunInSession(wfId, sessionId, '{"n": 1}');
+    const run2 = store.createRunInSession(wfId, sessionId, '{"n": 2}');
+    const run3 = store.createRunInSession(wfId, sessionId, '{"n": 3}');
+
+    const sessionRuns = store.getSessionRuns(sessionId);
+    expect(sessionRuns).toHaveLength(3);
+    expect(sessionRuns[0].id).toBe(run1);
+    expect(sessionRuns[1].id).toBe(run2);
+    expect(sessionRuns[2].id).toBe(run3);
+  });
+
   it("marks orphaned running runs as failed", () => {
     const wfId = store.upsertWorkflow("orphan-wf", "custom", "hash");
     const run1 = store.createRun(wfId);

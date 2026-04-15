@@ -133,4 +133,56 @@ describe("MCP tool handlers", () => {
     const result = await handlers.ccf_approve({ runId, nodeId: "gate" });
     expect("isError" in result && result.isError).toBe(true);
   });
+
+  it("ccf_abandon cancels a running run", async () => {
+    const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "running");
+    const result = await handlers.ccf_abandon({ runId });
+    expect(result.content[0].text).toContain("Abandoned");
+    expect(result.content[0].text).toContain(runId.slice(0, 8));
+    // Verify run is now cancelled in the store
+    const run = store.getRun(runId);
+    expect(run?.status).toBe("cancelled");
+  });
+
+  it("ccf_abandon returns error for already-completed run", async () => {
+    const wfId = store.upsertWorkflow("test-wf", "custom", "hash");
+    const runId = store.createRun(wfId);
+    store.updateRunStatus(runId, "completed");
+    const result = await handlers.ccf_abandon({ runId });
+    expect("isError" in result && result.isError).toBe(true);
+    expect(result.content[0].text).toContain("Error");
+  });
+
+  it("ccf_abandon returns error for nonexistent run", async () => {
+    const result = await handlers.ccf_abandon({ runId: "nonexistent" });
+    expect("isError" in result && result.isError).toBe(true);
+  });
+
+  it("ccf_complete returns success message for branch cleanup", async () => {
+    // completeIsolation uses gitSafe (non-throwing) for branch deletion,
+    // so even a non-existent branch won't error — it just silently succeeds.
+    const result = await handlers.ccf_complete({ branch: "ccf/fake-branch" });
+    expect(result.content[0].text).toContain("Completed");
+    expect(result.content[0].text).toContain("ccf/fake-branch");
+  });
+
+  it("ccf_complete includes remote deletion message when requested", async () => {
+    // deleteRemote will try git push --delete which will fail, producing an error
+    // or it may silently fail via gitSafe. Either way we test the flag is passed.
+    const result = await handlers.ccf_complete({ branch: "ccf/fake-branch", deleteRemote: true });
+    // If it errors (no remote), we check for error; if it succeeds, check for message
+    if ("isError" in result && result.isError) {
+      expect(result.content[0].text).toContain("Error");
+    } else {
+      expect(result.content[0].text).toContain("Remote branch deleted");
+    }
+  });
+
+  // ccf_run and ccf_resume are not tested here because they require a full
+  // executor + AI provider pipeline (runWorkflow/resumeWorkflow). Testing them
+  // meaningfully would need extensive mocking of the workflow engine internals,
+  // which would produce brittle tests that don't verify real behavior.
+  // Integration tests at the core/workflows level cover these paths instead.
 });

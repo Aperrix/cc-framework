@@ -8,6 +8,19 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: vi.fn(),
 }));
 
+/** Create an async iterable that throws on first next(). Avoids require-yield lint. */
+function failingIterable(error: Error): AsyncIterable<Record<string, unknown>> {
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        async next(): Promise<IteratorResult<Record<string, unknown>>> {
+          throw error;
+        },
+      };
+    },
+  };
+}
+
 describe("isClaudeModel", () => {
   it("matches claude- prefixed models", () => {
     expect(isClaudeModel("claude-3-opus")).toBe(true);
@@ -61,7 +74,6 @@ describe("ClaudeProvider", () => {
     const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
     const mockedQuery = vi.mocked(mockQuery);
 
-    // Simulate SDK yielding init + result messages
     async function* fakeStream() {
       yield { type: "system", subtype: "init", session_id: "sess-123" };
       yield { type: "result", result: "Hello world" };
@@ -88,6 +100,191 @@ describe("ClaudeProvider", () => {
 
     await expect(provider.query({ prompt: "Fail", cwd: "/tmp" })).rejects.toThrow(
       "Invalid API key",
+    );
+    // Non-transient: should NOT retry — only 1 call
+    expect(mockedQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries on transient error and succeeds", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    let callCount = 0;
+    mockedQuery.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return failingIterable(new Error("rate limit exceeded")) as ReturnType<typeof mockedQuery>;
+      }
+      async function* succeed() {
+        yield { type: "result", result: "ok" };
+      }
+      return succeed() as ReturnType<typeof mockedQuery>;
+    });
+
+    const result = await provider.query({ prompt: "test", cwd: "/tmp" });
+    expect(result.output).toBe("ok");
+    expect(callCount).toBe(2);
+  });
+
+  it("throws after exhausting retries on transient errors", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    let callCount = 0;
+    mockedQuery.mockImplementation(() => {
+      callCount++;
+      return failingIterable(new Error("503 Service Unavailable")) as ReturnType<
+        typeof mockedQuery
+      >;
+    });
+
+    await expect(provider.query({ prompt: "test", cwd: "/tmp" })).rejects.toThrow(
+      "503 Service Unavailable",
+    );
+    // MAX_RETRIES = 2, so 3 total attempts (0, 1, 2)
+    expect(callCount).toBe(3);
+  });
+
+  it("retries on 429 error", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    let callCount = 0;
+    mockedQuery.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return failingIterable(new Error("429 Too Many Requests")) as ReturnType<
+          typeof mockedQuery
+        >;
+      }
+      async function* succeed() {
+        yield { type: "result", result: "recovered" };
+      }
+      return succeed() as ReturnType<typeof mockedQuery>;
+    });
+
+    const result = await provider.query({ prompt: "test", cwd: "/tmp" });
+    expect(result.output).toBe("recovered");
+    expect(callCount).toBe(2);
+  });
+
+  it("retries on 503 error", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    let callCount = 0;
+    mockedQuery.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return failingIterable(new Error("503 Service Unavailable")) as ReturnType<
+          typeof mockedQuery
+        >;
+      }
+      async function* succeed() {
+        yield { type: "result", result: "recovered" };
+      }
+      return succeed() as ReturnType<typeof mockedQuery>;
+    });
+
+    const result = await provider.query({ prompt: "test", cwd: "/tmp" });
+    expect(result.output).toBe("recovered");
+    expect(callCount).toBe(2);
+  });
+
+  it("retries on ECONNRESET error", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    let callCount = 0;
+    mockedQuery.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return failingIterable(new Error("ECONNRESET")) as ReturnType<typeof mockedQuery>;
+      }
+      async function* succeed() {
+        yield { type: "result", result: "recovered" };
+      }
+      return succeed() as ReturnType<typeof mockedQuery>;
+    });
+
+    const result = await provider.query({ prompt: "test", cwd: "/tmp" });
+    expect(result.output).toBe("recovered");
+    expect(callCount).toBe(2);
+  });
+
+  it("does not retry on non-transient 'Invalid API key' error", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    let callCount = 0;
+    mockedQuery.mockImplementation(() => {
+      callCount++;
+      return failingIterable(new Error("Invalid API key")) as ReturnType<typeof mockedQuery>;
+    });
+
+    await expect(provider.query({ prompt: "test", cwd: "/tmp" })).rejects.toThrow(
+      "Invalid API key",
+    );
+    expect(callCount).toBe(1);
+  });
+
+  it("resolves 'sonnet' alias to 'claude-sonnet-4-6' in SDK call", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    async function* fakeStream() {
+      yield { type: "result", result: "done" };
+    }
+    mockedQuery.mockReturnValue(fakeStream() as ReturnType<typeof mockedQuery>);
+
+    await provider.query({ prompt: "test", model: "sonnet", cwd: "/tmp" });
+
+    expect(mockedQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          model: "claude-sonnet-4-6",
+        }),
+      }),
+    );
+  });
+
+  it("resolves 'opus' alias to 'claude-opus-4-6' in SDK call", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    async function* fakeStream() {
+      yield { type: "result", result: "done" };
+    }
+    mockedQuery.mockReturnValue(fakeStream() as ReturnType<typeof mockedQuery>);
+
+    await provider.query({ prompt: "test", model: "opus", cwd: "/tmp" });
+
+    expect(mockedQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          model: "claude-opus-4-6",
+        }),
+      }),
+    );
+  });
+
+  it("passes non-alias models through unchanged", async () => {
+    const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
+    const mockedQuery = vi.mocked(mockQuery);
+
+    async function* fakeStream() {
+      yield { type: "result", result: "done" };
+    }
+    mockedQuery.mockReturnValue(fakeStream() as ReturnType<typeof mockedQuery>);
+
+    await provider.query({ prompt: "test", model: "claude-3-opus", cwd: "/tmp" });
+
+    expect(mockedQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          model: "claude-3-opus",
+        }),
+      }),
     );
   });
 });

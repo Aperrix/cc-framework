@@ -5,7 +5,12 @@ import { describe, expect, it, beforeEach, afterEach } from "vite-plus/test";
 import {
   logFileEvent,
   logFileWorkflowStart,
+  logFileWorkflowComplete,
+  logFileWorkflowError,
+  logFileNodeStart,
   logFileNodeComplete,
+  logFileNodeSkip,
+  logFileNodeError,
   type WorkflowFileEvent,
 } from "../src/file-logger.ts";
 
@@ -88,5 +93,59 @@ describe("file-logger", () => {
     const parsed: WorkflowFileEvent = JSON.parse(content.trim());
     expect(parsed.type).toBe("node_start");
     expect(parsed.step).toBe("init");
+  });
+
+  // ---- Convenience wrapper tests ----
+
+  it("logFileWorkflowComplete writes workflow_complete with duration_ms", async () => {
+    await logFileWorkflowComplete(tempDir, "run-wc", 1500);
+
+    const content = await readFile(join(tempDir, "run-wc.jsonl"), "utf-8");
+    const parsed: WorkflowFileEvent = JSON.parse(content.trim());
+    expect(parsed.type).toBe("workflow_complete");
+    expect(parsed.duration_ms).toBe(1500);
+    expect(parsed.workflow_id).toBe("run-wc");
+    expect(parsed.ts).toBeTruthy();
+  });
+
+  it("logFileWorkflowError writes workflow_error with error string", async () => {
+    await logFileWorkflowError(tempDir, "run-we", "Something went wrong");
+
+    const content = await readFile(join(tempDir, "run-we.jsonl"), "utf-8");
+    const parsed: WorkflowFileEvent = JSON.parse(content.trim());
+    expect(parsed.type).toBe("workflow_error");
+    expect(parsed.error).toBe("Something went wrong");
+    expect(parsed.workflow_id).toBe("run-we");
+  });
+
+  it("logFileNodeStart writes node_start with step", async () => {
+    await logFileNodeStart(tempDir, "run-ns", "build");
+
+    const content = await readFile(join(tempDir, "run-ns.jsonl"), "utf-8");
+    const parsed: WorkflowFileEvent = JSON.parse(content.trim());
+    expect(parsed.type).toBe("node_start");
+    expect(parsed.step).toBe("build");
+    expect(parsed.workflow_id).toBe("run-ns");
+  });
+
+  it("logFileNodeSkip writes node_skipped with step", async () => {
+    await logFileNodeSkip(tempDir, "run-nsk", "optional-step");
+
+    const content = await readFile(join(tempDir, "run-nsk.jsonl"), "utf-8");
+    const parsed: WorkflowFileEvent = JSON.parse(content.trim());
+    expect(parsed.type).toBe("node_skipped");
+    expect(parsed.step).toBe("optional-step");
+    expect(parsed.workflow_id).toBe("run-nsk");
+  });
+
+  it("logFileNodeError writes node_error with step and error", async () => {
+    await logFileNodeError(tempDir, "run-ne", "deploy", "Connection refused");
+
+    const content = await readFile(join(tempDir, "run-ne.jsonl"), "utf-8");
+    const parsed: WorkflowFileEvent = JSON.parse(content.trim());
+    expect(parsed.type).toBe("node_error");
+    expect(parsed.step).toBe("deploy");
+    expect(parsed.error).toBe("Connection refused");
+    expect(parsed.workflow_id).toBe("run-ne");
   });
 });

@@ -4,6 +4,8 @@ import {
   rejectWorkflow,
   abandonWorkflow,
   getWorkflowStatus,
+  resumeWorkflow,
+  runWorkflow,
 } from "../../src/operations/workflow-operations.ts";
 import { createDatabase, StoreQueries, type Database } from "@cc-framework/workflows";
 
@@ -142,6 +144,85 @@ describe("workflow-operations", () => {
       store.createRunInSession(wfId, sessionId);
       const result = getWorkflowStatus(store, sessionId);
       expect(result.runs).toHaveLength(2);
+    });
+  });
+
+  // ---- resumeWorkflow ----
+
+  describe("resumeWorkflow", () => {
+    const fakeConfig = {
+      model: "sonnet",
+      effort: "high" as const,
+      isolation: { strategy: "branch" as const, branch_prefix: "ccf/" },
+      paths: {
+        embeddedWorkflows: "/tmp/embedded",
+        globalHome: "/tmp/global",
+        globalWorkflows: "/tmp/global/workflows",
+        database: "/tmp/db",
+        projectRoot: "/tmp/project",
+        projectConfig: "/tmp/project/.cc-framework",
+        projectWorkflows: "/tmp/project/.cc-framework/workflows",
+        projectPrompts: "/tmp/project/.cc-framework/prompts",
+        projectScripts: "/tmp/project/.cc-framework/scripts",
+        docsDir: "/tmp/project/.cc-framework/docs",
+      },
+    };
+
+    it("throws for non-existent run", async () => {
+      await expect(resumeWorkflow("nonexistent", fakeConfig, store, "/tmp")).rejects.toThrow(
+        /not found/,
+      );
+    });
+
+    it("throws for run not in resumable status", async () => {
+      const { runId } = makeRunningRun();
+      await expect(resumeWorkflow(runId, fakeConfig, store, "/tmp")).rejects.toThrow(
+        /Cannot resume/,
+      );
+    });
+
+    it("throws for completed (terminal) run", async () => {
+      const { runId } = makeRunningRun();
+      store.updateRunStatus(runId, "completed");
+      await expect(resumeWorkflow(runId, fakeConfig, store, "/tmp")).rejects.toThrow(
+        /Cannot resume/,
+      );
+    });
+
+    it("throws when workflow file no longer exists on disk", async () => {
+      const { runId } = makePausedRun();
+      // findWorkflow will scan real disk and not find "test-wf", so it returns null
+      await expect(resumeWorkflow(runId, fakeConfig, store, "/tmp")).rejects.toThrow(
+        /no longer exists/,
+      );
+    });
+  });
+
+  // ---- runWorkflow ----
+
+  describe("runWorkflow", () => {
+    const fakeConfig = {
+      model: "sonnet",
+      effort: "high" as const,
+      isolation: { strategy: "branch" as const, branch_prefix: "ccf/" },
+      paths: {
+        embeddedWorkflows: "/tmp/nonexistent-embedded",
+        globalHome: "/tmp/global",
+        globalWorkflows: "/tmp/global/workflows",
+        database: "/tmp/db",
+        projectRoot: "/tmp/project",
+        projectConfig: "/tmp/project/.cc-framework",
+        projectWorkflows: "/tmp/project/.cc-framework/workflows",
+        projectPrompts: "/tmp/project/.cc-framework/prompts",
+        projectScripts: "/tmp/project/.cc-framework/scripts",
+        docsDir: "/tmp/project/.cc-framework/docs",
+      },
+    };
+
+    it("throws when workflow not found", async () => {
+      await expect(
+        runWorkflow("nonexistent-wf", undefined, fakeConfig, store, sessionId, "/tmp"),
+      ).rejects.toThrow(/not found/);
     });
   });
 });

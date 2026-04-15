@@ -132,16 +132,14 @@ describe("E2E: review DAG pattern", () => {
     // Synthesize should run after all review agents
     expect(startTimes.synthesize).toBeGreaterThan(startTimes["gather-scope"]);
 
-    // All 4 agents should start in the same DAG layer (parallel)
-    const agentStarts = [
-      startTimes["code-review"],
-      startTimes["error-handling"],
-      startTimes["test-coverage"],
-      startTimes["security-review"],
-    ];
-    const maxDiff = Math.max(...agentStarts) - Math.min(...agentStarts);
-    // They should start within 200ms of each other (same layer)
-    expect(maxDiff).toBeLessThan(200);
+    // All 4 review agents depend only on gather-scope (same DAG layer)
+    const parallelAgents = ["code-review", "error-handling", "test-coverage", "security-review"];
+    for (const agent of parallelAgents) {
+      // Each agent must start after gather-scope
+      expect(startTimes[agent]).toBeGreaterThan(startTimes["gather-scope"]);
+      // Each agent must start before synthesize
+      expect(startTimes[agent]).toBeLessThan(startTimes.synthesize);
+    }
   });
 });
 

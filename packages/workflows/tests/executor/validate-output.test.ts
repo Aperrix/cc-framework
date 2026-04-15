@@ -67,6 +67,26 @@ describe("validateNodeOutput", () => {
     expect(result.errors[0]).toContain("must be one of");
   });
 
+  it("fails for array output", () => {
+    const node = makeNode({ type: "object", properties: {} });
+    const result = validateNodeOutput(node, JSON.stringify([1, 2, 3]));
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toBe("Output must be a JSON object");
+  });
+
+  it("validates boolean type correctly", () => {
+    const node = makeNode({
+      type: "object",
+      properties: { active: { type: "boolean" } },
+    });
+    const valid = validateNodeOutput(node, JSON.stringify({ active: true }));
+    expect(valid.valid).toBe(true);
+
+    const invalid = validateNodeOutput(node, JSON.stringify({ active: "yes" }));
+    expect(invalid.valid).toBe(false);
+    expect(invalid.errors[0]).toContain("must be a boolean");
+  });
+
   it("collects multiple errors", () => {
     const node = makeNode({
       type: "object",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { dispatchNode, type DispatchContext } from "../../src/executor/node-dispatcher.ts";
 import { WorkflowEventBus } from "../../src/events/event-bus.ts";
 import type { Node } from "../../src/schema/node.ts";
@@ -97,5 +97,95 @@ describe("dispatchNode", () => {
       makeContext({ nodeOutputs: { analyze: { output: "previous-result" } } }),
     );
     expect(result.output.trim()).toBe("previous-result");
+  });
+
+  it("dispatches prompt nodes via runAi", async () => {
+    const aiRunner = await import("../../src/runners/ai-runner.ts");
+    const spy = vi.spyOn(aiRunner, "runAi").mockResolvedValue({
+      output: "ai response",
+      sessionId: "sess-1",
+    });
+
+    const node = {
+      id: "p",
+      prompt: "What is 2+2?",
+      depends_on: [],
+      trigger_rule: "all_success",
+      context: "fresh",
+    } as Node;
+
+    const result = await dispatchNode(node, makeContext());
+
+    expect(spy).toHaveBeenCalledOnce();
+    expect(result.output).toBe("ai response");
+    expect(result.sessionId).toBe("sess-1");
+
+    spy.mockRestore();
+  });
+
+  it("dispatches prompt nodes and throws on AI error", async () => {
+    const aiRunner = await import("../../src/runners/ai-runner.ts");
+    const spy = vi.spyOn(aiRunner, "runAi").mockResolvedValue({
+      output: "partial",
+      error: "rate limited",
+    });
+
+    const node = {
+      id: "p",
+      prompt: "fail me",
+      depends_on: [],
+      trigger_rule: "all_success",
+      context: "fresh",
+    } as Node;
+
+    await expect(dispatchNode(node, makeContext())).rejects.toThrow(/AI node error/);
+
+    spy.mockRestore();
+  });
+
+  it("dispatches loop nodes via runLoop", async () => {
+    const loopRunner = await import("../../src/runners/loop-runner.ts");
+    const spy = vi.spyOn(loopRunner, "runLoop").mockResolvedValue({
+      output: "loop done",
+      iterations: 3,
+      maxIterationsReached: false,
+    });
+
+    const node = {
+      id: "l",
+      loop: {
+        prompt: "iterate",
+        until: "done",
+        max_iterations: 10,
+        fresh_context: false,
+        interactive: false,
+      },
+      depends_on: [],
+      trigger_rule: "all_success",
+      context: "fresh",
+    } as Node;
+
+    const result = await dispatchNode(node, makeContext());
+
+    expect(spy).toHaveBeenCalledOnce();
+    expect(result.output).toBe("loop done");
+
+    spy.mockRestore();
+  });
+
+  it("dispatches approval nodes by throwing WorkflowPausedError", async () => {
+    const { WorkflowPausedError } = await import("../../src/runners/approval-runner.ts");
+
+    const node = {
+      id: "a",
+      approval: { message: "Please approve this change", capture_response: false },
+      depends_on: [],
+      trigger_rule: "all_success",
+      context: "fresh",
+    } as Node;
+
+    await expect(dispatchNode(node, makeContext({ nodeId: "a", runId: "run-1" }))).rejects.toThrow(
+      WorkflowPausedError,
+    );
   });
 });

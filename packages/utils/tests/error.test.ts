@@ -6,6 +6,7 @@ import {
   ConfigError,
   ValidationError,
   formatError,
+  toError,
 } from "../src/error.ts";
 
 describe("CcfError", () => {
@@ -50,6 +51,37 @@ describe("ValidationError", () => {
   it("has VALIDATION_ERROR code", () => {
     const error = new ValidationError("missing required field");
     expect(error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
+describe("toError", () => {
+  it("returns same Error for Error input", () => {
+    const err = new Error("original");
+    expect(toError(err)).toBe(err);
+  });
+
+  it("wraps string in Error", () => {
+    const result = toError("something failed");
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("something failed");
+  });
+
+  it("wraps object in Error with string representation", () => {
+    const result = toError({ code: 42 });
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("[object Object]");
+  });
+
+  it("wraps null in Error", () => {
+    const result = toError(null);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("null");
+  });
+
+  it("wraps undefined in Error", () => {
+    const result = toError(undefined);
+    expect(result).toBeInstanceOf(Error);
+    expect(result.message).toBe("undefined");
   });
 });
 
