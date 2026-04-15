@@ -3,6 +3,9 @@
 import { loadConfig, ensureGlobalHome, type ResolvedConfig } from "@cc-framework/core";
 import { DEFAULTS_DIR, createDatabase, StoreQueries, type Database } from "@cc-framework/workflows";
 
+/** Default session inactivity threshold: 24 hours. */
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
 export interface CliContext {
   config: ResolvedConfig;
   db: Database;
@@ -24,6 +27,9 @@ export async function createCliContext(cwd: string): Promise<CliContext> {
   // Crash recovery — mark orphaned runs as failed
   store.failOrphanedRuns();
 
+  // Expire stale sessions (same TTL as MCP)
+  store.expireStaleSessions(SESSION_TTL_MS);
+
   // Session management — resume or create
   const existingSession = store.getActiveSession(cwd);
   const sessionId = existingSession?.id ?? store.createSession(cwd);
@@ -33,5 +39,6 @@ export async function createCliContext(cwd: string): Promise<CliContext> {
 
 /** Clean up resources on exit. */
 export function destroyCliContext(ctx: CliContext): void {
+  ctx.store.closeSession(ctx.sessionId);
   ctx.db.close();
 }

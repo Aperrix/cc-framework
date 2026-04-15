@@ -150,9 +150,14 @@ export class WorkflowExecutor {
     const artifactsDir = `${effectiveCwd}/.cc-framework/artifacts/${runId}`;
     await mkdir(artifactsDir, { recursive: true });
 
+    const promptDir = config.paths.projectPrompts || `${effectiveCwd}/.cc-framework/prompts`;
     const builtins: Record<string, string> = {
       ARTIFACTS_DIR: artifactsDir,
-      DOCS_DIR: `${effectiveCwd}/docs`,
+      DOCS_DIR: config.paths.docsDir || `${effectiveCwd}/docs`,
+      PROMPT_DIR: promptDir,
+      WORKFLOW_ID: runId,
+      REJECTION_REASON: "",
+      LOOP_USER_INPUT: "",
     };
     if (args) builtins.ARGUMENTS = args;
 

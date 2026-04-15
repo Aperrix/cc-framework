@@ -64,6 +64,8 @@ const NodeBaseSchema = z.object({
   allowed_tools: z.array(z.string()).optional(),
   denied_tools: z.array(z.string()).optional(),
   sandbox: SandboxSchema.optional(),
+  // Parsed and validated but not yet consumed by the executor.
+  // These fields are reserved for future Claude SDK integration:
   hooks: NodeHooksSchema.optional(),
   mcp: z.string().min(1).optional(),
   skills: z.array(z.string().min(1)).optional(),

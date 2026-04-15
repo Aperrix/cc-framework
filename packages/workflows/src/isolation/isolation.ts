@@ -4,6 +4,7 @@
  */
 
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 import {
   addWorktree,
@@ -42,10 +43,15 @@ export async function setupIsolation(
   const branchName = `${config.branch_prefix}${runId}`;
 
   if (config.strategy === "worktree") {
+    // Validate runId to prevent path traversal
+    if (/[/\\]|\.\./.test(runId)) {
+      throw new Error(`Invalid runId for worktree: "${runId}"`);
+    }
+
     // Sync with origin before creating worktree (best-effort)
     await fetchOrigin(cwd).catch(() => {});
 
-    const worktreePath = `${cwd}/../.cc-framework-worktrees/${runId}`;
+    const worktreePath = resolve(cwd, "..", ".cc-framework-worktrees", runId);
     await addWorktree(branchName, worktreePath, cwd);
     return {
       strategy: "worktree",

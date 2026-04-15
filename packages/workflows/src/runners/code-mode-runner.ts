@@ -10,6 +10,7 @@ import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import { SCRIPT_RUNTIMES } from "../constants.ts";
 import type { ScriptRuntime } from "../constants.ts";
+import { expandModelAlias } from "../executor/resolve-model.ts";
 import { runScript, type ScriptResult } from "./script-runner.ts";
 
 // ---- Types ----
@@ -114,18 +115,21 @@ export async function runCodeMode(
   const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
   let llmOutput = "";
-  const systemPrompt = buildCodeModeSystemPrompt(runtime, builtins);
+  const codeModeSystemPrompt = buildCodeModeSystemPrompt(runtime, builtins);
+  // Prepend node-level systemPrompt if provided, then code-mode instructions
+  const fullSystemPrompt = node.systemPrompt
+    ? `${node.systemPrompt}\n\n${codeModeSystemPrompt}`
+    : codeModeSystemPrompt;
 
   try {
     // SDK boundary: query() returns an async iterable but SDK types don't expose it.
     const events = query({
-      prompt: `${systemPrompt}\n\nTASK:\n${prompt}`,
+      prompt: `${fullSystemPrompt}\n\nTASK:\n${prompt}`,
       options: {
         allowedTools: [], // No tools — force code generation
-        model: node.model ?? workflow.model,
+        model: expandModelAlias(node.model ?? workflow.model ?? "sonnet"),
         cwd,
       },
-      // SDK boundary: query() returns an async iterable but SDK types don't expose it.
     }) as AsyncIterable<{ type: string; [key: string]: unknown }>;
 
     for await (const message of events) {

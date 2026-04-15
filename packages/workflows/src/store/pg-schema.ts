@@ -72,7 +72,10 @@ export const pgNodeExecutions = pgTable(
     finishedAt: integer("finished_at"),
     durationMs: integer("duration_ms"),
   },
-  (table) => [index("idx_node_executions_run").on(table.runId)],
+  (table) => [
+    index("idx_node_executions_run").on(table.runId),
+    index("idx_node_executions_run_status").on(table.runId, table.status),
+  ],
 );
 
 export const pgOutputs = pgTable("outputs", {

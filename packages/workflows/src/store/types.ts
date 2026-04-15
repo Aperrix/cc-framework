@@ -7,6 +7,7 @@
  */
 
 import type { RunStatus, NodeExecutionStatus } from "../constants.ts";
+import type { ApprovalContext } from "../runners/approval-runner.ts";
 
 /** Minimal run record needed by the engine. */
 export interface WorkflowRunRecord {
@@ -26,39 +27,48 @@ export interface NodeOutputRecord {
 
 /** Interface that the workflow engine depends on for persistence. */
 export interface IWorkflowStore {
+  // Workflow registry
+  upsertWorkflow(name: string, source: string, hash: string): string;
+  getWorkflow(id: string): { id: string; name: string; source: string } | null;
+
   // Run lifecycle
-  upsertWorkflow(name: string, hash: string): string;
   createRun(workflowId: string, args?: string, sessionId?: string): string;
   getRun(runId: string): WorkflowRunRecord | null;
-  updateRunStatus(runId: string, status: RunStatus, finishedAt?: number): void;
+  getRunStatus(runId: string): RunStatus | null;
+  updateRunStatus(runId: string, status: RunStatus): void;
   getCompletedNodeIds(runId: string): Set<string>;
 
   // Node execution
-  createNodeExecution(runId: string, nodeId: string): string;
-  updateNodeExecution(
-    executionId: string,
-    status: NodeExecutionStatus,
-    output?: string,
-    error?: string,
-    durationMs?: number,
-  ): void;
-  getNodeOutputs(runId: string): Record<string, NodeOutputRecord>;
+  createNodeExecution(runId: string, nodeId: string, attempt: number): string;
+  updateNodeExecutionStatus(id: string, status: NodeExecutionStatus, durationMs?: number): void;
+  saveOutput(nodeExecutionId: string, content: string, exitCode?: number | null): string;
+  getNodeOutputs(runId: string): Record<string, { output: string }>;
+  completeNodeByNodeId(runId: string, nodeId: string, output?: string): void;
 
   // Events
-  recordEvent(runId: string, type: string, data?: Record<string, unknown>): void;
+  recordEvent(runId: string, nodeId: string | null, type: string, payload?: string): string;
+  getEvents(runId: string): Array<{
+    type: string;
+    nodeId: string | null;
+    timestamp: number;
+    payload: string | null;
+  }>;
 
   // Session
   getActiveSession(cwd: string): { id: string } | null;
   createSession(cwd: string): string;
 
   // Approval
-  pauseForApproval(runId: string, nodeId: string, message: string): void;
-  resolveApproval(runId: string, approved: boolean, response?: string): void;
-  getPendingApproval(runId: string): { nodeId: string; message: string } | null;
+  pauseRun(runId: string, approvalContext: ApprovalContext): void;
+  resumeRun(runId: string): void;
+  getApprovalContext(runId: string): Record<string, unknown> | null;
+
+  // Activity
+  updateRunActivity(runId: string): void;
 
   // Crash recovery
-  failOrphanedRuns(): void;
+  failOrphanedRuns(): number;
 
   // Resume
-  findResumableRun(workflowName: string): { runId: string; completedNodes: Set<string> } | null;
+  findResumableRun(workflowName: string): { id: string; status: string } | null;
 }

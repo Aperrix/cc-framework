@@ -84,7 +84,10 @@ export const nodeExecutions = sqliteTable(
     finishedAt: integer("finished_at", { mode: "number" }),
     durationMs: integer("duration_ms"),
   },
-  (table) => [index("idx_node_executions_run").on(table.runId)],
+  (table) => [
+    index("idx_node_executions_run").on(table.runId),
+    index("idx_node_executions_run_status").on(table.runId, table.status),
+  ],
 );
 
 export const outputs = sqliteTable("outputs", {
@@ -226,6 +229,7 @@ export function createDatabase(path: string) {
     CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
     CREATE INDEX IF NOT EXISTS idx_runs_session ON runs(session_id);
     CREATE INDEX IF NOT EXISTS idx_node_executions_run ON node_executions(run_id);
+    CREATE INDEX IF NOT EXISTS idx_node_executions_run_status ON node_executions(run_id, status);
     CREATE INDEX IF NOT EXISTS idx_events_run ON events(run_id);
   `;
   sqlite.exec(createSQL);

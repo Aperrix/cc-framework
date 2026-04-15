@@ -1,8 +1,13 @@
 /** Iterative loop runner that repeats an AI prompt until a termination condition is met. */
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
 import type { AiResult } from "./ai-runner.ts";
+
+const execFileAsync = promisify(execFile);
 
 /** Result from a loop execution, including iteration count and whether the limit was hit. */
 export interface LoopResult {
@@ -46,9 +51,20 @@ export async function runLoop(
       return { output: lastOutput, iterations: i + 1, maxIterationsReached: false };
     }
 
-    // Check termination condition — the `until` string appearing in the output
+    // Check termination: string match OR bash script exit code
     if (lastOutput.includes(loop.until)) {
       return { output: lastOutput, iterations: i + 1, maxIterationsReached: false };
+    }
+    if (loop.until_bash) {
+      try {
+        await execFileAsync("bash", ["-c", loop.until_bash], {
+          env: { ...process.env, LOOP_OUTPUT: lastOutput },
+        });
+        // Exit code 0 = condition met
+        return { output: lastOutput, iterations: i + 1, maxIterationsReached: false };
+      } catch {
+        // Non-zero exit = condition not met, continue looping
+      }
     }
   }
 

@@ -37,18 +37,18 @@ describe("createCliContext", () => {
     expect(session!.status).toBe("active");
   });
 
-  it("resumes existing active session on second call", async () => {
+  it("creates a new session after previous was properly closed", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "ccf-ctx-test-"));
 
-    // First context creates a session — don't close DB yet, just destroy after
+    // First context creates a session
     const ctx1 = await createCliContext(tempDir);
     const sessionId1 = ctx1.sessionId;
-    // Close the DB so we can open it again
+    // destroyCliContext closes the session — next call creates a new one
     destroyCliContext(ctx1);
 
-    // Second context opens the same DB file and should find the active session
+    // Second context should create a NEW session (previous was closed)
     ctx = await createCliContext(tempDir);
-    expect(ctx.sessionId).toBe(sessionId1);
+    expect(ctx.sessionId).not.toBe(sessionId1);
   });
 
   it("config paths include the project root", async () => {
