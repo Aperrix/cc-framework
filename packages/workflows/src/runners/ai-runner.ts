@@ -2,6 +2,8 @@
 
 import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
+import { expandModelAlias } from "../executor/resolve-model.ts";
+import { toError } from "@cc-framework/utils";
 
 /** Result from an AI node execution, optionally carrying a session ID for context reuse. */
 export interface AiResult {
@@ -15,8 +17,6 @@ export interface AiResult {
 
 // ---- SDK Message Shapes ----
 
-// Minimal typing for the SDK message fields we consume.
-
 interface SdkInitMessage {
   type: "system";
   subtype: "init";
@@ -29,6 +29,64 @@ interface SdkResultMessage {
 }
 
 type SdkMessage = SdkInitMessage | SdkResultMessage | { type: string; [key: string]: unknown };
+
+// ---- Options Builder ----
+
+/** Build SDK options from node and workflow configuration. */
+function buildSdkOptions(
+  node: Node,
+  workflow: Workflow,
+  cwd: string,
+  resumeSessionId?: string,
+): Record<string, unknown> {
+  const model = expandModelAlias(node.model ?? workflow.model ?? "sonnet");
+
+  const options: Record<string, unknown> = {
+    model,
+    cwd,
+    permissionMode: "bypassPermissions",
+  };
+
+  // Tool restrictions
+  if (node.allowed_tools) options.allowedTools = node.allowed_tools;
+  if (node.denied_tools) options.deniedTools = node.denied_tools;
+
+  // System prompt (node-level or workflow-level)
+  if (node.systemPrompt) options.systemPrompt = node.systemPrompt;
+
+  // Session resume
+  if (resumeSessionId) options.resume = resumeSessionId;
+
+  // Effort / thinking (Claude SDK options)
+  const effort = node.effort ?? workflow.effort;
+  if (effort) options.effort = effort;
+
+  const thinking = node.thinking ?? workflow.thinking;
+  if (
+    thinking &&
+    typeof thinking === "object" &&
+    "budgetTokens" in thinking &&
+    thinking.budgetTokens
+  ) {
+    options.maxThinkingTokens = thinking.budgetTokens;
+  }
+
+  // Budget limit
+  if (node.maxBudgetUsd) options.maxBudgetUsd = node.maxBudgetUsd;
+
+  // Fallback model
+  const fallback = node.fallbackModel ?? workflow.fallbackModel;
+  if (fallback) options.fallbackModel = expandModelAlias(fallback);
+
+  // Betas
+  const betas = node.betas ?? workflow.betas;
+  if (betas) options.betas = betas;
+
+  // Sandbox
+  if (node.sandbox) options.sandbox = node.sandbox;
+
+  return options;
+}
 
 // ---- Main ----
 
@@ -51,16 +109,7 @@ export async function runAi(
   let output = "";
   let sessionId: string | undefined;
 
-  const options: Record<string, unknown> = {
-    allowedTools: node.allowed_tools,
-    model: node.model ?? workflow.model,
-    systemPrompt: node.systemPrompt,
-    cwd,
-    resume: resumeSessionId,
-  };
-  if (node.denied_tools) {
-    options.deniedTools = node.denied_tools;
-  }
+  const options = buildSdkOptions(node, workflow, cwd, resumeSessionId);
 
   try {
     // SDK boundary: query() returns an async iterable but the SDK types don't
@@ -83,9 +132,6 @@ export async function runAi(
 
     return { output, sessionId };
   } catch (err) {
-    // Preserve partial output on failure — the model may have produced
-    // useful work before the error (e.g., edited files, created branches).
-    const { toError } = await import("@cc-framework/utils");
     return {
       output,
       sessionId,

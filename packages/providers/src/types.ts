@@ -16,7 +16,7 @@ export interface ProviderCapabilities {
 export interface QueryOptions {
   /** The prompt to send to the model. */
   prompt: string;
-  /** Model identifier override (provider-specific). */
+  /** Model identifier override (provider-specific). Aliases (sonnet, opus) accepted. */
   model?: string;
   /** System prompt to prepend. */
   systemPrompt?: string;
@@ -28,6 +28,20 @@ export interface QueryOptions {
   maxBudgetUsd?: number;
   /** Working directory for tool execution. */
   cwd?: string;
+  /** Session ID to resume a previous conversation. */
+  resumeSessionId?: string;
+  /** Effort level for the query. */
+  effort?: string;
+  /** Maximum thinking tokens (extended thinking). */
+  maxThinkingTokens?: number;
+  /** Fallback model if primary is unavailable. */
+  fallbackModel?: string;
+  /** Beta features to enable. */
+  betas?: string[];
+  /** Sandbox configuration. */
+  sandbox?: Record<string, unknown>;
+  /** Permission mode for tool execution. */
+  permissionMode?: "default" | "plan" | "bypassPermissions";
 }
 
 /** Result returned from a provider query. */

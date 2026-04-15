@@ -179,7 +179,7 @@ export {
   type DispatchResult,
   type DispatchContext,
 } from "./executor/node-dispatcher.ts";
-export { resolveModel, type ResolvedModel } from "./executor/resolve-model.ts";
+export { resolveModel, expandModelAlias, type ResolvedModel } from "./executor/resolve-model.ts";
 
 // ---- Events ----
 export {
