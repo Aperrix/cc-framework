@@ -12,6 +12,7 @@ import { WorkflowSchema } from "../schema/workflow.ts";
 import { NodeSchema } from "../schema/node.ts";
 import { resolvePromptWithConfig } from "../discovery/prompts.ts";
 import type { WorkflowConfig } from "../deps.ts";
+import { toError } from "@cc-framework/utils";
 
 /** A single parse/validation error with optional node context. */
 export interface ParseError {
@@ -50,7 +51,7 @@ export async function parseWorkflowSafe(
   } catch (err) {
     return {
       workflow: null,
-      errors: [{ message: `Failed to read workflow file: ${(err as Error).message}` }],
+      errors: [{ message: `Failed to read workflow file: ${toError(err).message}` }],
     };
   }
 
@@ -60,7 +61,7 @@ export async function parseWorkflowSafe(
   } catch (err) {
     return {
       workflow: null,
-      errors: [{ message: `Invalid YAML: ${(err as Error).message}` }],
+      errors: [{ message: `Invalid YAML: ${toError(err).message}` }],
     };
   }
 
@@ -77,7 +78,7 @@ export async function parseWorkflowSafe(
   }
 
   const shell = shellResult.data;
-  const rawNodes = shell.nodes as unknown[];
+  const rawNodes = shell.nodes;
 
   // --- parse each node individually ---
   const errors: ParseError[] = [];
@@ -86,10 +87,8 @@ export async function parseWorkflowSafe(
   for (const rawNode of rawNodes) {
     const nodeResult = NodeSchema.safeParse(rawNode);
     if (!nodeResult.success) {
-      const nodeId =
-        rawNode != null && typeof rawNode === "object" && "id" in rawNode
-          ? String((rawNode as Record<string, unknown>).id)
-          : undefined;
+      const hasId = rawNode != null && typeof rawNode === "object" && "id" in rawNode;
+      const nodeId = hasId ? String(rawNode.id) : undefined;
       for (const issue of nodeResult.error.issues) {
         errors.push({
           nodeId,
@@ -108,10 +107,10 @@ export async function parseWorkflowSafe(
   }
 
   // Assemble the workflow object
-  const workflow: Workflow = {
-    ...shell,
-    nodes: parsedNodes,
-  } as Workflow;
+  // Safe assertion: shell was validated by WorkflowShellSchema (all fields except nodes),
+  // and parsedNodes were individually validated by NodeSchema. Re-parsing via
+  // WorkflowSchema.parse() would be redundant.
+  const workflow: Workflow = { ...shell, nodes: parsedNodes } as Workflow;
 
   // --- resolve prompts per-node ---
   const workflowDir = dirname(filePath);
@@ -124,7 +123,7 @@ export async function parseWorkflowSafe(
         errors.push({
           nodeId: node.id,
           field: "prompt",
-          message: `Failed to resolve prompt: ${(err as Error).message}`,
+          message: `Failed to resolve prompt: ${toError(err).message}`,
         });
       }
     }
@@ -135,7 +134,7 @@ export async function parseWorkflowSafe(
         errors.push({
           nodeId: node.id,
           field: "loop.prompt",
-          message: `Failed to resolve loop prompt: ${(err as Error).message}`,
+          message: `Failed to resolve loop prompt: ${toError(err).message}`,
         });
       }
     }

@@ -8,6 +8,7 @@
 
 import type { Node } from "../schema/node.ts";
 import type { Workflow } from "../schema/workflow.ts";
+import { SCRIPT_RUNTIMES } from "../constants.ts";
 import type { ScriptRuntime } from "../constants.ts";
 import { runScript, type ScriptResult } from "./script-runner.ts";
 
@@ -101,7 +102,9 @@ export async function runCodeMode(
   cwd: string,
   builtins: Record<string, string>,
 ): Promise<CodeModeResult> {
-  const runtime: ScriptRuntime = (node.runtime as ScriptRuntime) ?? "bun";
+  const runtimeSet: ReadonlySet<string> = new Set(SCRIPT_RUNTIMES);
+  const raw = node.runtime ?? "bun";
+  const runtime: ScriptRuntime = runtimeSet.has(raw) ? (raw as ScriptRuntime) : "bun";
 
   // Phase 1: Ask the LLM to generate code
   // We use the Agent SDK but with NO tools — forcing pure text output

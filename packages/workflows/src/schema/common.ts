@@ -81,7 +81,9 @@ export type Sandbox = z.infer<typeof SandboxSchema>;
 
 // ---- Type Guards ----
 
+const TRIGGER_RULE_SET: ReadonlySet<string> = new Set(TRIGGER_RULES);
+
 /** Check whether an unknown value is a valid TriggerRule string. */
 export function isTriggerRule(value: unknown): value is TriggerRule {
-  return typeof value === "string" && TRIGGER_RULES.includes(value as TriggerRule);
+  return typeof value === "string" && TRIGGER_RULE_SET.has(value);
 }

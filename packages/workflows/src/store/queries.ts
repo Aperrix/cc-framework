@@ -13,6 +13,9 @@ import type {
 } from "../constants.ts";
 import { TERMINAL_RUN_STATUSES, TERMINAL_NODE_STATUSES } from "../constants.ts";
 import type { ApprovalContext } from "../runners/approval-runner.ts";
+
+const TERMINAL_RUNS: ReadonlySet<string> = new Set(TERMINAL_RUN_STATUSES);
+const TERMINAL_NODES: ReadonlySet<string> = new Set(TERMINAL_NODE_STATUSES);
 import { workflows, runs, nodeExecutions, outputs, events, sessions } from "./database.ts";
 
 // ---- Workflow Operations ----
@@ -76,16 +79,15 @@ export class StoreQueries {
 
   /** Transition a run to a new status, setting finishedAt for terminal states. */
   updateRunStatus(id: string, status: RunStatus): void {
-    const finishedAt = (TERMINAL_RUN_STATUSES as readonly string[]).includes(status)
-      ? Date.now()
-      : undefined;
+    const finishedAt = TERMINAL_RUNS.has(status) ? Date.now() : undefined;
     this.db.update(runs).set({ status, finishedAt }).where(eq(runs.id, id)).run();
   }
 
   /** Get just the status column for a run, or null if not found. */
   getRunStatus(id: string): RunStatus | null {
     const run = this.db.select({ status: runs.status }).from(runs).where(eq(runs.id, id)).get();
-    return (run?.status as RunStatus) ?? null;
+    if (!run) return null;
+    return run.status satisfies RunStatus;
   }
 
   // ---- Node Execution Operations ----
@@ -114,9 +116,7 @@ export class StoreQueries {
 
   /** Transition a node execution to a new status, setting finishedAt for terminal states. */
   updateNodeExecutionStatus(id: string, status: NodeExecutionStatus, durationMs?: number): void {
-    const finishedAt = (TERMINAL_NODE_STATUSES as readonly string[]).includes(status)
-      ? Date.now()
-      : undefined;
+    const finishedAt = TERMINAL_NODES.has(status) ? Date.now() : undefined;
     this.db
       .update(nodeExecutions)
       .set({ status, finishedAt, durationMs })

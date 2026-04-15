@@ -59,7 +59,9 @@ export function validateNodeOutput(node: Node, output: string): ValidationResult
     for (const [key, propSchema] of Object.entries(schema.properties)) {
       if (!(key in parsed)) continue;
       const value = parsed[key];
-      const prop = propSchema as Record<string, unknown>;
+      if (propSchema === null || typeof propSchema !== "object" || Array.isArray(propSchema))
+        continue;
+      const prop: Record<string, unknown> = propSchema;
 
       // Type check
       if (prop.type === "string" && typeof value !== "string") {

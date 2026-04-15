@@ -32,12 +32,10 @@ export class WorkflowPausedError extends Error {
 
 /** Type guard to validate a parsed JSON payload as an ApprovalContext. */
 export function isApprovalContext(val: unknown): val is ApprovalContext {
-  return (
-    typeof val === "object" &&
-    val !== null &&
-    typeof (val as Record<string, unknown>).nodeId === "string" &&
-    typeof (val as Record<string, unknown>).message === "string"
-  );
+  if (typeof val !== "object" || val === null) return false;
+  if (!("nodeId" in val) || typeof val.nodeId !== "string") return false;
+  if (!("message" in val) || typeof val.message !== "string") return false;
+  return true;
 }
 
 /**
