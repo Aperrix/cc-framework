@@ -124,6 +124,20 @@ export class StoreQueries {
       .run();
   }
 
+  /** Mark the latest node execution for a given nodeId as completed (used for approval gates). */
+  completeNodeByNodeId(runId: string, nodeId: string, output: string = ""): void {
+    const exec = this.db
+      .select({ id: nodeExecutions.id })
+      .from(nodeExecutions)
+      .where(and(eq(nodeExecutions.runId, runId), eq(nodeExecutions.nodeId, nodeId)))
+      .orderBy(desc(nodeExecutions.startedAt))
+      .get();
+    if (exec) {
+      this.updateNodeExecutionStatus(exec.id, "completed");
+      this.saveOutput(exec.id, output);
+    }
+  }
+
   /** Persist a node's output content and optional exit code. */
   saveOutput(nodeExecutionId: string, content: string, exitCode?: number | null): string {
     const id = randomUUID();

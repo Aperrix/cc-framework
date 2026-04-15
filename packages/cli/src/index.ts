@@ -12,6 +12,7 @@ import { commandResume } from "./commands/resume.ts";
 import { commandApprove } from "./commands/approve.ts";
 import { commandReject } from "./commands/reject.ts";
 import { commandLogs } from "./commands/logs.ts";
+import { commandAbandon } from "./commands/abandon.ts";
 
 // ---- Arg Parsing ----
 
@@ -52,6 +53,7 @@ Commands:
   approve <runId> <nodeId>      Approve a pending approval node
   reject <runId> <nodeId>       Reject with optional --reason "..."
   logs <runId>                  Show event timeline for a run
+  abandon <runId>               Abandon (cancel) a non-terminal run
   help                          Show this help message
 `.trim();
 
@@ -118,6 +120,11 @@ async function main(): Promise<void> {
       case "logs":
         if (!positional[0]) throw new Error("Usage: ccf logs <runId>");
         output = await commandLogs(positional[0], ctx.store);
+        break;
+
+      case "abandon":
+        if (!positional[0]) throw new Error("Usage: ccf abandon <runId>");
+        output = await commandAbandon(positional[0], ctx.store);
         break;
 
       default:

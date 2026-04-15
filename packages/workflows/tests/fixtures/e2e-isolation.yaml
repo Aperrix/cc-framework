@@ -1,0 +1,6 @@
+name: e2e-isolation
+description: Minimal workflow for isolation testing
+nodes:
+  - id: check
+    script: "pwd"
+    runtime: bash

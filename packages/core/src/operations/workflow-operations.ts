@@ -114,6 +114,7 @@ export function approveWorkflow(
   }
 
   store.recordEvent(runId, nodeId, "approval:approved");
+  store.completeNodeByNodeId(runId, nodeId);
   store.resumeRun(runId);
 
   const wf = store.getWorkflow(run.workflowId);

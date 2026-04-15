@@ -47,7 +47,7 @@ async function main(): Promise<void> {
     version: "0.0.1",
   });
 
-  // Register all 8 tools
+  // Register all 9 tools
   register(server, "ccf_init", toolDefs.ccf_init, handlers.ccf_init);
   register(server, "ccf_run", toolDefs.ccf_run, handlers.ccf_run);
   register(server, "ccf_list", toolDefs.ccf_list, handlers.ccf_list);
@@ -56,6 +56,7 @@ async function main(): Promise<void> {
   register(server, "ccf_approve", toolDefs.ccf_approve, handlers.ccf_approve);
   register(server, "ccf_reject", toolDefs.ccf_reject, handlers.ccf_reject);
   register(server, "ccf_logs", toolDefs.ccf_logs, handlers.ccf_logs);
+  register(server, "ccf_abandon", toolDefs.ccf_abandon, handlers.ccf_abandon);
 
   // Register startup prompt — Claude Code can load this to learn available workflows
   server.prompt(

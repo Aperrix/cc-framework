@@ -1,0 +1,14 @@
+name: e2e-approval
+description: End-to-end test with approval gate between script nodes
+nodes:
+  - id: prepare
+    script: "echo 'ready for review'"
+    runtime: bash
+  - id: review-gate
+    approval:
+      message: "Review the preparation output before proceeding."
+    depends_on: [prepare]
+  - id: finalize
+    script: "echo 'approved and finalized'"
+    runtime: bash
+    depends_on: [review-gate]

@@ -6,6 +6,7 @@ import {
   approveWorkflow,
   rejectWorkflow,
   resumeWorkflow,
+  abandonWorkflow,
   getWorkflowStatus,
 } from "@cc-framework/core";
 import { toError } from "@cc-framework/utils";
@@ -107,6 +108,16 @@ export const toolDefs: Record<string, ToolDef> = {
       type: "object",
       properties: {
         runId: { type: "string", description: "Run ID" },
+      },
+      required: ["runId"],
+    },
+  },
+  ccf_abandon: {
+    description: "Abandon (cancel) a non-terminal workflow run.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        runId: { type: "string", description: "Run ID to abandon" },
       },
       required: ["runId"],
     },
@@ -271,6 +282,15 @@ export function createHandlers(ctx: McpContext) {
         const events = ctx.store.getEvents(args.runId);
         if (events.length === 0) return text(`No events for run ${args.runId.slice(0, 8)}.`);
         return text([fmtRun(run), "", ...events.map(fmtEvent)].join("\n"));
+      } catch (e) {
+        return error(toError(e).message);
+      }
+    },
+
+    ccf_abandon: async (args: { runId: string }) => {
+      try {
+        abandonWorkflow(args.runId, ctx.store);
+        return text(`Abandoned run ${args.runId.slice(0, 8)}.`);
       } catch (e) {
         return error(toError(e).message);
       }
