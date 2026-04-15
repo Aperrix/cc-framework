@@ -102,6 +102,8 @@ export async function runCodeMode(
   cwd: string,
   builtins: Record<string, string>,
 ): Promise<CodeModeResult> {
+  // TS limitation: Set.has() cannot narrow string → ScriptRuntime. The guard ensures
+  // the value is valid; the assertion is safe.
   const runtimeSet: ReadonlySet<string> = new Set(SCRIPT_RUNTIMES);
   const raw = node.runtime ?? "bun";
   const runtime: ScriptRuntime = runtimeSet.has(raw) ? (raw as ScriptRuntime) : "bun";
@@ -123,6 +125,7 @@ export async function runCodeMode(
         model: node.model ?? workflow.model,
         cwd,
       },
+      // SDK boundary: query() returns an async iterable but SDK types don't expose it.
     }) as AsyncIterable<{ type: string; [key: string]: unknown }>;
 
     for await (const message of events) {
