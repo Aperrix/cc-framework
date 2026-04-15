@@ -4,6 +4,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+import { discoverWorkflows, parseWorkflow } from "@cc-framework/workflows";
+import { formatWorkflowSection } from "@cc-framework/core";
 import { createMcpContext, destroyMcpContext } from "./context.ts";
 import { toolDefs, createHandlers, type ToolDef } from "./tools.ts";
 
@@ -54,6 +56,36 @@ async function main(): Promise<void> {
   register(server, "ccf_approve", toolDefs.ccf_approve, handlers.ccf_approve);
   register(server, "ccf_reject", toolDefs.ccf_reject, handlers.ccf_reject);
   register(server, "ccf_logs", toolDefs.ccf_logs, handlers.ccf_logs);
+
+  // Register startup prompt — Claude Code can load this to learn available workflows
+  server.prompt(
+    "ccf_startup",
+    "Get an overview of available workflows and how to use cc-framework in this project.",
+    async () => {
+      const discovered = await discoverWorkflows(ctx.config);
+      const workflows = await Promise.all(discovered.map((d) => parseWorkflow(d.path, ctx.config)));
+
+      let content = "# cc-framework — Available Workflows\n\n";
+
+      if (workflows.length === 0) {
+        content +=
+          "No workflows found. Initialize with `ccf_init` then create YAML workflows in `.cc-framework/workflows/`.\n";
+      } else {
+        content += formatWorkflowSection(workflows);
+        content += "\n## Usage\n\n";
+        content += "Use `ccf_run` with a workflow name to execute. Examples:\n";
+        for (const wf of workflows) {
+          content += `- \`ccf_run({ workflow: "${wf.name}" })\`\n`;
+        }
+        content +=
+          "\nUse `ccf_status` to check run progress, `ccf_approve`/`ccf_reject` for approval gates.\n";
+      }
+
+      return {
+        messages: [{ role: "user" as const, content: { type: "text" as const, text: content } }],
+      };
+    },
+  );
 
   // Cleanup on exit
   process.on("SIGINT", () => {
