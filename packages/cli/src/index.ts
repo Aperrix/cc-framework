@@ -13,6 +13,7 @@ import { commandApprove } from "./commands/approve.ts";
 import { commandReject } from "./commands/reject.ts";
 import { commandLogs } from "./commands/logs.ts";
 import { commandAbandon } from "./commands/abandon.ts";
+import { commandComplete } from "./commands/complete.ts";
 
 // ---- Arg Parsing ----
 
@@ -54,6 +55,7 @@ Commands:
   reject <runId> <nodeId>       Reject with optional --reason "..."
   logs <runId>                  Show event timeline for a run
   abandon <runId>               Abandon (cancel) a non-terminal run
+  complete <branch> [--remote]  Remove worktree + branches after merge
   help                          Show this help message
 `.trim();
 
@@ -125,6 +127,11 @@ async function main(): Promise<void> {
       case "abandon":
         if (!positional[0]) throw new Error("Usage: ccf abandon <runId>");
         output = await commandAbandon(positional[0], ctx.store);
+        break;
+
+      case "complete":
+        if (!positional[0]) throw new Error("Usage: ccf complete <branch> [--remote]");
+        output = await commandComplete(positional[0], ctx.cwd, flags.remote === "true");
         break;
 
       default:

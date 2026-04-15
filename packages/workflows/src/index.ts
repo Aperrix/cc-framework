@@ -197,6 +197,7 @@ export {
 export {
   setupIsolation,
   cleanupIsolation,
+  completeIsolation,
   listWorktrees,
   cleanupOrphanedWorktrees,
   cleanupToMakeRoom,

@@ -10,7 +10,7 @@ import {
   getWorkflowStatus,
 } from "@cc-framework/core";
 import { toError } from "@cc-framework/utils";
-import { discoverWorkflows } from "@cc-framework/workflows";
+import { discoverWorkflows, completeIsolation } from "@cc-framework/workflows";
 
 import type { McpContext } from "./context.ts";
 
@@ -120,6 +120,20 @@ export const toolDefs: Record<string, ToolDef> = {
         runId: { type: "string", description: "Run ID to abandon" },
       },
       required: ["runId"],
+    },
+  },
+  ccf_complete: {
+    description: "Remove a worktree and its branches after a PR has been merged or work abandoned.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        branch: { type: "string", description: "Branch name to complete (e.g., ccf/fix/abc123)" },
+        deleteRemote: {
+          type: "boolean",
+          description: "Also delete the remote branch (default: false)",
+        },
+      },
+      required: ["branch"],
     },
   },
 };
@@ -291,6 +305,25 @@ export function createHandlers(ctx: McpContext) {
       try {
         abandonWorkflow(args.runId, ctx.store);
         return text(`Abandoned run ${args.runId.slice(0, 8)}.`);
+      } catch (e) {
+        return error(toError(e).message);
+      }
+    },
+
+    ccf_complete: async (args: { branch: string; deleteRemote?: boolean }) => {
+      try {
+        await completeIsolation(
+          {
+            strategy: "worktree",
+            branchName: args.branch,
+            originalCwd: ctx.cwd,
+            workingDirectory: ctx.cwd,
+          },
+          args.deleteRemote ?? false,
+        );
+        return text(
+          `Completed branch "${args.branch}".${args.deleteRemote ? " Remote branch deleted." : ""}`,
+        );
       } catch (e) {
         return error(toError(e).message);
       }

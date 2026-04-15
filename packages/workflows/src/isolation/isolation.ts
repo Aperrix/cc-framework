@@ -4,7 +4,8 @@
  */
 
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { cp, stat } from "node:fs/promises";
+import { resolve, join } from "node:path";
 
 import {
   addWorktree,
@@ -15,6 +16,7 @@ import {
   deleteBranch,
   isBranchMerged,
   fetchOrigin,
+  gitSafe,
   type WorktreeInfo,
 } from "@cc-framework/git";
 import type { Isolation } from "../schema/common.ts";
@@ -53,6 +55,10 @@ export async function setupIsolation(
 
     const worktreePath = resolve(cwd, "..", ".cc-framework-worktrees", runId);
     await addWorktree(branchName, worktreePath, cwd);
+
+    // Sync project config into the worktree so workflows find prompts/scripts
+    await syncConfigToWorktree(cwd, worktreePath);
+
     return {
       strategy: "worktree",
       branchName,
@@ -77,6 +83,38 @@ export async function cleanupIsolation(env: IsolationEnvironment): Promise<void>
   if (env.strategy === "worktree" && env.worktreePath) {
     await removeWorktree(env.worktreePath, env.originalCwd);
     await deleteBranch(env.branchName, env.originalCwd, true);
+  }
+}
+
+/**
+ * Complete an isolation lifecycle — remove worktree, delete local and remote branches.
+ * Use after a PR has been merged or work has been abandoned.
+ */
+export async function completeIsolation(
+  env: IsolationEnvironment,
+  deleteRemote = false,
+): Promise<void> {
+  if (env.strategy === "worktree" && env.worktreePath) {
+    await removeWorktree(env.worktreePath, env.originalCwd);
+  }
+  await deleteBranch(env.branchName, env.originalCwd, true);
+  if (deleteRemote) {
+    await gitSafe(["push", "origin", "--delete", env.branchName], env.originalCwd);
+  }
+}
+
+/**
+ * Copy .cc-framework/ project config into a worktree so workflows
+ * find prompts, scripts, and config. Best-effort — skips if source doesn't exist.
+ */
+async function syncConfigToWorktree(sourceCwd: string, worktreePath: string): Promise<void> {
+  const sourceConfig = join(sourceCwd, ".cc-framework");
+  try {
+    await stat(sourceConfig);
+    const targetConfig = join(worktreePath, ".cc-framework");
+    await cp(sourceConfig, targetConfig, { recursive: true });
+  } catch {
+    // No .cc-framework/ in source — nothing to sync
   }
 }
 

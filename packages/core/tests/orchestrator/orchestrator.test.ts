@@ -32,19 +32,24 @@ function makeConfig(cwd: string): ResolvedConfig {
 }
 
 describe("orchestrator", () => {
+  let baseDir: string;
   let tempDir: string;
   let db: Database;
   let store: StoreQueries;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "ccf-orch-test-"));
+    // Use a nested directory so worktrees (../.cc-framework-worktrees/) stay contained
+    baseDir = await mkdtemp(join(tmpdir(), "ccf-orch-test-"));
+    tempDir = join(baseDir, "project");
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(tempDir, { recursive: true });
     db = createDatabase(":memory:");
     store = new StoreQueries(db);
   });
 
   afterEach(async () => {
     db.close();
-    await rm(tempDir, { recursive: true, force: true });
+    await rm(baseDir, { recursive: true, force: true });
   });
 
   function makeCtx(overrides?: Partial<OrchestratorContext>): OrchestratorContext {
