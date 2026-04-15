@@ -3,13 +3,21 @@
  * Includes utilities for detecting and cleaning up orphaned/stale worktrees.
  */
 
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
+import { existsSync } from "node:fs";
 
+import {
+  addWorktree,
+  removeWorktree,
+  pruneWorktrees,
+  listWorktrees as gitListWorktrees,
+  createBranch,
+  deleteBranch,
+  isBranchMerged,
+  fetchOrigin,
+  type WorktreeInfo,
+} from "@cc-framework/git";
 import type { Isolation } from "../schema/common.ts";
 import type { IsolationStrategy } from "../constants.ts";
-
-const execAsync = promisify(exec);
 
 /** Describes the isolation environment created for a run. */
 export interface IsolationEnvironment {
@@ -23,10 +31,8 @@ export interface IsolationEnvironment {
 /**
  * Create an isolated git environment for a workflow run.
  *
- * - **worktree**: Creates a new git worktree + branch in a sibling directory,
- *   giving the run a fully independent working tree.
- * - **branch**: Creates a new branch in the current repo without moving files,
- *   lighter weight but shares the working directory.
+ * - **worktree**: Syncs with origin, then creates a new git worktree + branch.
+ * - **branch**: Creates a new branch in the current repo without moving files.
  */
 export async function setupIsolation(
   config: Isolation,
@@ -36,8 +42,11 @@ export async function setupIsolation(
   const branchName = `${config.branch_prefix}${runId}`;
 
   if (config.strategy === "worktree") {
+    // Sync with origin before creating worktree (best-effort)
+    await fetchOrigin(cwd).catch(() => {});
+
     const worktreePath = `${cwd}/../.cc-framework-worktrees/${runId}`;
-    await execAsync(`git worktree add -b "${branchName}" "${worktreePath}"`, { cwd });
+    await addWorktree(branchName, worktreePath, cwd);
     return {
       strategy: "worktree",
       branchName,
@@ -48,7 +57,7 @@ export async function setupIsolation(
   }
 
   // Branch strategy — create branch but stay in the same directory
-  await execAsync(`git checkout -b "${branchName}"`, { cwd });
+  await createBranch(branchName, cwd);
   return {
     strategy: "branch",
     branchName,
@@ -59,63 +68,22 @@ export async function setupIsolation(
 
 /** Remove a worktree and its branch. Branch-only isolation needs no cleanup. */
 export async function cleanupIsolation(env: IsolationEnvironment): Promise<void> {
-  if (env.strategy === "worktree") {
-    await execAsync(`git worktree remove "${env.worktreePath}" --force`, {
-      cwd: env.originalCwd,
-    }).catch(() => {});
-    await execAsync(`git branch -D "${env.branchName}"`, { cwd: env.originalCwd }).catch(() => {});
+  if (env.strategy === "worktree" && env.worktreePath) {
+    await removeWorktree(env.worktreePath, env.originalCwd);
+    await deleteBranch(env.branchName, env.originalCwd, true);
   }
 }
 
-// ---- Cleanup ----
+// ---- Listing & Cleanup ----
 
 /**
  * List all cc-framework worktrees whose branches match the given prefix.
- *
- * Parses `git worktree list --porcelain` output and returns path/branch pairs
- * for every worktree whose branch starts with `branchPrefix`.
  */
 export async function listWorktrees(
   cwd: string,
   branchPrefix: string = "ccf/",
-): Promise<{ path: string; branch: string }[]> {
-  try {
-    const { stdout } = await execAsync("git worktree list --porcelain", { cwd });
-    const worktrees: { path: string; branch: string }[] = [];
-    let currentPath = "";
-
-    for (const line of stdout.split("\n")) {
-      if (line.startsWith("worktree ")) {
-        currentPath = line.slice("worktree ".length);
-      } else if (line.startsWith("branch refs/heads/")) {
-        const branch = line.slice("branch refs/heads/".length);
-        if (branch.startsWith(branchPrefix) && currentPath) {
-          worktrees.push({ path: currentPath, branch });
-        }
-      }
-    }
-
-    return worktrees;
-  } catch {
-    return [];
-  }
-}
-
-/** Check if a worktree's branch has been merged into the base branch. */
-async function isBranchMerged(
-  cwd: string,
-  branch: string,
-  baseBranch: string = "main",
-): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync(
-      `git branch --merged "${baseBranch}" | grep -w "${branch}"`,
-      { cwd },
-    );
-    return stdout.trim().length > 0;
-  } catch {
-    return false;
-  }
+): Promise<WorktreeInfo[]> {
+  return gitListWorktrees(cwd, branchPrefix);
 }
 
 /**
@@ -136,33 +104,17 @@ export async function cleanupOrphanedWorktrees(
   let cleaned = 0;
 
   for (const wt of worktrees) {
-    let shouldClean = false;
+    const dirMissing = !existsSync(wt.path);
+    const merged = !dirMissing && (await isBranchMerged(wt.branch, baseBranch, cwd));
 
-    // Check if the worktree directory still exists
-    try {
-      const { statSync } = await import("node:fs");
-      statSync(wt.path);
-    } catch {
-      // Directory missing — orphaned
-      shouldClean = true;
-    }
-
-    // Check if branch was merged
-    if (!shouldClean) {
-      shouldClean = await isBranchMerged(cwd, wt.branch, baseBranch);
-    }
-
-    if (shouldClean) {
-      // Remove worktree (may fail if already gone — that's fine)
-      await execAsync(`git worktree remove "${wt.path}" --force`, { cwd }).catch(() => {});
-      await execAsync(`git branch -D "${wt.branch}"`, { cwd }).catch(() => {});
+    if (dirMissing || merged) {
+      await removeWorktree(wt.path, cwd);
+      await deleteBranch(wt.branch, cwd, true);
       cleaned++;
     }
   }
 
-  // Prune any remaining stale worktree references
-  await execAsync("git worktree prune", { cwd }).catch(() => {});
-
+  await pruneWorktrees(cwd);
   return cleaned;
 }
 
@@ -181,23 +133,13 @@ export async function cleanupToMakeRoom(
   const worktrees = await listWorktrees(cwd, branchPrefix);
   if (worktrees.length < maxWorktrees) return 0;
 
-  // Sort by path (oldest first — worktrees are created sequentially)
   const toRemove = worktrees.slice(0, worktrees.length - maxWorktrees + 1);
   let removed = 0;
 
   for (const wt of toRemove) {
-    try {
-      await cleanupIsolation({
-        strategy: "worktree",
-        branchName: wt.branch,
-        worktreePath: wt.path,
-        originalCwd: cwd,
-        workingDirectory: wt.path,
-      });
-      removed++;
-    } catch {
-      // Best effort — skip worktrees that can't be removed
-    }
+    await removeWorktree(wt.path, cwd);
+    await deleteBranch(wt.branch, cwd, true);
+    removed++;
   }
 
   return removed;

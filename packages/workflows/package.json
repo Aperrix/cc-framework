@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.107",
+    "@cc-framework/git": "workspace:*",
     "@cc-framework/providers": "workspace:*",
     "@cc-framework/utils": "workspace:*",
     "better-sqlite3": "^11.8.0",

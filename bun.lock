@@ -36,6 +36,16 @@
         "vite-plus": "catalog:",
       },
     },
+    "packages/git": {
+      "name": "@cc-framework/git",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cc-framework/utils": "workspace:*",
+      },
+      "devDependencies": {
+        "vite-plus": "catalog:",
+      },
+    },
     "packages/mcp": {
       "name": "@cc-framework/mcp",
       "version": "0.0.0",
@@ -78,6 +88,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.107",
+        "@cc-framework/git": "workspace:*",
         "@cc-framework/providers": "workspace:*",
         "@cc-framework/utils": "workspace:*",
         "better-sqlite3": "^11.8.0",
@@ -117,6 +128,8 @@
     "@cc-framework/cli": ["@cc-framework/cli@workspace:packages/cli"],
 
     "@cc-framework/core": ["@cc-framework/core@workspace:packages/core"],
+
+    "@cc-framework/git": ["@cc-framework/git@workspace:packages/git"],
 
     "@cc-framework/mcp": ["@cc-framework/mcp@workspace:packages/mcp"],
 
