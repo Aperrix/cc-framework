@@ -59,6 +59,13 @@ export interface RejectionResult {
   reason: string;
 }
 
+export interface RunResult {
+  runId: string;
+  workflowName: string;
+  status: string;
+  nodeOutputs: Record<string, { output: string }>;
+}
+
 export interface ResumeResult {
   runId: string;
   status: string;
@@ -204,4 +211,42 @@ export function abandonWorkflow(runId: string, store: StoreQueries): WorkflowRun
   getLog().info({ runId }, "operations.workflow_abandoned");
 
   return run;
+}
+
+/** Run a workflow by name — find, parse, execute. */
+export async function runWorkflow(
+  workflowName: string,
+  args: string | undefined,
+  config: ResolvedConfig,
+  store: StoreQueries,
+  sessionId: string,
+  cwd: string,
+): Promise<RunResult> {
+  const discovered = await findWorkflow(workflowName, config);
+  if (!discovered) {
+    throw new Error(
+      `Workflow "${workflowName}" not found. Run 'ccf list' to see available workflows.`,
+    );
+  }
+
+  const workflow = await parseWorkflow(discovered.path, config);
+  const eventBus = new WorkflowEventBus();
+  const executor = new WorkflowExecutor(store, eventBus);
+
+  getLog().info({ workflowName: workflow.name, sessionId }, "operations.workflow_run_started");
+
+  const result = await executor.run(workflow, cwd, args, config, sessionId);
+  const nodeOutputs = store.getNodeOutputs(result.runId);
+
+  getLog().info(
+    { runId: result.runId, status: result.status, workflowName: workflow.name },
+    "operations.workflow_run_completed",
+  );
+
+  return {
+    runId: result.runId,
+    workflowName: workflow.name,
+    status: result.status,
+    nodeOutputs,
+  };
 }

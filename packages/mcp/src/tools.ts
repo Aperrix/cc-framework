@@ -2,18 +2,13 @@
 
 import {
   initProject,
+  runWorkflow,
   approveWorkflow,
   rejectWorkflow,
   resumeWorkflow,
   getWorkflowStatus,
 } from "@cc-framework/core";
-import {
-  discoverWorkflows,
-  findWorkflow,
-  parseWorkflow,
-  WorkflowExecutor,
-  WorkflowEventBus,
-} from "@cc-framework/workflows";
+import { discoverWorkflows } from "@cc-framework/workflows";
 
 import type { McpContext } from "./context.ts";
 
@@ -185,21 +180,16 @@ export function createHandlers(ctx: McpContext) {
 
     ccf_run: async (args: { workflow: string; args?: string }) => {
       try {
-        const discovered = await findWorkflow(args.workflow, ctx.config);
-        if (!discovered) {
-          return error(
-            `Workflow "${args.workflow}" not found. Use ccf_list to see available workflows.`,
-          );
-        }
-
-        const workflow = await parseWorkflow(discovered.path, ctx.config);
-        const eventBus = new WorkflowEventBus();
-        const executor = new WorkflowExecutor(ctx.store, eventBus);
-        const result = await executor.run(workflow, ctx.cwd, args.args, ctx.config, ctx.sessionId);
-
+        const result = await runWorkflow(
+          args.workflow,
+          args.args,
+          ctx.config,
+          ctx.store,
+          ctx.sessionId,
+          ctx.cwd,
+        );
         const lines = [fmtRun({ id: result.runId, status: result.status, startedAt: Date.now() })];
-        const outputs = ctx.store.getNodeOutputs(result.runId);
-        for (const [nodeId, out] of Object.entries(outputs)) {
+        for (const [nodeId, out] of Object.entries(result.nodeOutputs)) {
           lines.push(`  ${nodeId}: ${out.output.split("\n")[0].slice(0, 100)}`);
         }
         return text(lines.join("\n"));

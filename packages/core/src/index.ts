@@ -20,11 +20,13 @@ export {
 
 // ---- Workflow Operations ----
 export {
+  runWorkflow,
   getWorkflowStatus,
   approveWorkflow,
   rejectWorkflow,
   resumeWorkflow,
   abandonWorkflow,
+  type RunResult,
   type WorkflowStatusResult,
   type ApprovalResult,
   type RejectionResult,
