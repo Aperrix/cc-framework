@@ -13,7 +13,8 @@
   "dependencies": {
     "@cc-framework/utils": "workspace:*",
     "@cc-framework/workflows": "workspace:*",
-    "yaml": "^2.7.0"
+    "yaml": "^2.7.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "vite-plus": "catalog:"

@@ -7,18 +7,32 @@ import { homedir } from "node:os";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { GlobalConfig, ProjectConfig, ResolvedConfig } from "./types.ts";
-import { CONFIG_DEFAULTS } from "./types.ts";
+import { GlobalConfigSchema, ProjectConfigSchema, CONFIG_DEFAULTS } from "./types.ts";
 
 /** Home directory for cc-framework global config. */
 function getGlobalHome(): string {
   return process.env.CCF_HOME ?? join(homedir(), ".cc-framework");
 }
 
-/** Try to read and parse a YAML file, return null if missing. */
-async function loadYaml<T>(path: string): Promise<T | null> {
+/** Try to read, parse, and validate a YAML config file. Returns null if missing or invalid. */
+async function loadGlobalConfig(path: string): Promise<GlobalConfig | null> {
   try {
     const content = await readFile(path, "utf-8");
-    return parseYaml(content) as T;
+    const parsed: unknown = parseYaml(content);
+    const result = GlobalConfigSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Try to read, parse, and validate a YAML config file. Returns null if missing or invalid. */
+async function loadProjectConfig(path: string): Promise<ProjectConfig | null> {
+  try {
+    const content = await readFile(path, "utf-8");
+    const parsed: unknown = parseYaml(content);
+    const result = ProjectConfigSchema.safeParse(parsed);
+    return result.success ? result.data : null;
   } catch {
     return null;
   }
@@ -42,11 +56,9 @@ export async function loadConfig(
   const projectConfigDir = join(projectRoot, ".cc-framework");
   const projectConfigPath = join(projectConfigDir, "config.yaml");
 
-  // Load config files (null if missing)
-  const globalCfg = await loadYaml<GlobalConfig>(globalConfigPath);
-  const projectCfg = await loadYaml<ProjectConfig>(projectConfigPath);
+  const globalCfg = await loadGlobalConfig(globalConfigPath);
+  const projectCfg = await loadProjectConfig(projectConfigPath);
 
-  // Resolve paths
   const paths: ResolvedConfig["paths"] = {
     embeddedWorkflows,
     globalHome,
@@ -68,10 +80,8 @@ export async function loadConfig(
       : join(projectRoot, "docs"),
   };
 
-  // Database URL: env var takes precedence, falls back to file path
   const databaseUrl = process.env.CCF_DATABASE_URL ?? undefined;
 
-  // Merge: defaults ← global ← project ← env
   const config: ResolvedConfig = {
     model: process.env.CCF_MODEL ?? projectCfg?.model ?? globalCfg?.model ?? CONFIG_DEFAULTS.model,
     effort: projectCfg?.effort ?? globalCfg?.effort ?? CONFIG_DEFAULTS.effort,
@@ -103,7 +113,6 @@ export async function initProject(projectRoot: string): Promise<void> {
   await mkdir(join(configDir, "prompts"), { recursive: true });
   await mkdir(join(configDir, "scripts"), { recursive: true });
 
-  // Write default config.yaml if it doesn't exist
   const configPath = join(configDir, "config.yaml");
   try {
     await readFile(configPath);

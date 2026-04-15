@@ -1,48 +1,45 @@
-/** Configuration type definitions for cc-framework. */
+/** Configuration type definitions for cc-framework — Zod schemas as source of truth. */
 
-/** Effort level for AI nodes. */
-type EffortLevel = "low" | "medium" | "high" | "max";
+import { z } from "zod";
 
-/** Isolation strategy for workflow execution. */
-type IsolationStrategy = "branch" | "worktree";
+// ---- Shared enums ----
+
+const EffortLevelSchema = z.enum(["low", "medium", "high", "max"]);
+const IsolationStrategySchema = z.enum(["branch", "worktree"]);
+
+const IsolationConfigSchema = z.object({
+  strategy: IsolationStrategySchema.optional(),
+  branch_prefix: z.string().optional(),
+});
+
+// ---- Config Schemas ----
 
 /** Global config (~/.cc-framework/config.yaml) — user-wide defaults. */
-export interface GlobalConfig {
-  /** Default Claude model to use for AI nodes. */
-  model?: string;
-  /** Default effort level for AI nodes. */
-  effort?: EffortLevel;
-  /** Default isolation strategy for workflows. */
-  isolation?: {
-    strategy?: IsolationStrategy;
-    branch_prefix?: string;
-  };
-  /** Path to the global workflows directory (default: ~/.cc-framework/workflows/). */
-  workflowsDir?: string;
-  /** Path to the SQLite database (default: ~/.cc-framework/cc-framework.db). */
-  databasePath?: string;
-}
+export const GlobalConfigSchema = z.object({
+  model: z.string().optional(),
+  effort: EffortLevelSchema.optional(),
+  isolation: IsolationConfigSchema.optional(),
+  workflowsDir: z.string().optional(),
+  databasePath: z.string().optional(),
+});
 
 /** Project config (.cc-framework/config.yaml) — per-project overrides. */
-export interface ProjectConfig {
-  /** Claude model override for this project. */
-  model?: string;
-  /** Effort level override. */
-  effort?: EffortLevel;
-  /** Isolation override. */
-  isolation?: {
-    strategy?: IsolationStrategy;
-    branch_prefix?: string;
-  };
-  /** Path to project prompts directory (default: .cc-framework/prompts/). */
-  promptsDir?: string;
-  /** Path to project scripts directory (default: .cc-framework/scripts/). */
-  scriptsDir?: string;
-  /** Path to project workflows directory (default: .cc-framework/workflows/). */
-  workflowsDir?: string;
-  /** Documentation directory for $DOCS_DIR variable. */
-  docsDir?: string;
-}
+export const ProjectConfigSchema = z.object({
+  model: z.string().optional(),
+  effort: EffortLevelSchema.optional(),
+  isolation: IsolationConfigSchema.optional(),
+  promptsDir: z.string().optional(),
+  scriptsDir: z.string().optional(),
+  workflowsDir: z.string().optional(),
+  docsDir: z.string().optional(),
+});
+
+// ---- Derived Types ----
+
+export type EffortLevel = z.infer<typeof EffortLevelSchema>;
+export type IsolationStrategy = z.infer<typeof IsolationStrategySchema>;
+export type GlobalConfig = z.infer<typeof GlobalConfigSchema>;
+export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
 
 /** Merged config — all levels resolved with defaults filled in. */
 export interface ResolvedConfig {
@@ -59,7 +56,6 @@ export interface ResolvedConfig {
    */
   databaseUrl?: string;
   paths: {
-    /** Bundled default workflows shipped with cc-framework. */
     embeddedWorkflows: string;
     globalHome: string;
     globalWorkflows: string;

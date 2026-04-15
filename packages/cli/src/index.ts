@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** cc-framework CLI — deterministic workflow engine for AI-assisted development. */
 
+import { toError } from "@cc-framework/utils";
 import { createCliContext, destroyCliContext } from "./shared/context.ts";
 import { formatError } from "./shared/format.ts";
 import { commandInit } from "./commands/init.ts";
@@ -60,14 +61,14 @@ async function main(): Promise<void> {
   const { command, positional, flags } = parseArgs(process.argv);
 
   if (command === "help" || command === "--help" || command === "-h") {
-    console.log(HELP);
+    process.stdout.write(`${HELP}\n`);
     return;
   }
 
   // Init doesn't need full context (no DB yet potentially)
   if (command === "init") {
     const result = await commandInit(process.cwd());
-    console.log(result);
+    process.stdout.write(`${result}\n`);
     return;
   }
 
@@ -123,9 +124,9 @@ async function main(): Promise<void> {
         output = `Unknown command: "${command}". Run 'ccf help' for usage.`;
     }
 
-    console.log(output);
+    process.stdout.write(`${output}\n`);
   } catch (error) {
-    console.error(formatError(error instanceof Error ? error.message : String(error)));
+    console.error(formatError(toError(error).message));
     process.exitCode = 1;
   } finally {
     destroyCliContext(ctx);
