@@ -2,9 +2,13 @@
 
 import { appendFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import { createLogger } from "@cc-framework/utils";
+import { createLogger, type Logger } from "@cc-framework/utils";
 
-const log = createLogger("file-logger");
+let cachedLog: Logger | undefined;
+function getLog(): Logger {
+  if (!cachedLog) cachedLog = createLogger("file-logger");
+  return cachedLog;
+}
 
 export interface WorkflowFileEvent {
   type:
@@ -44,7 +48,7 @@ export async function logFileEvent(
     };
     await appendFile(logPath, JSON.stringify(fullEvent) + "\n");
   } catch (err) {
-    log.warn({ logPath, err }, "log_write_failed");
+    getLog().warn({ logPath, err }, "filelogger.write_failed");
     // Never throw — logging should not break workflow execution
   }
 }

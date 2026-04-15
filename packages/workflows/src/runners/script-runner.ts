@@ -5,10 +5,15 @@ import { promisify } from "node:util";
 
 import type { ScriptRuntime } from "../constants.ts";
 import { isScriptFilePath } from "../utils/file-path.ts";
-import { createLogger } from "@cc-framework/utils";
+import { createLogger, type Logger } from "@cc-framework/utils";
 
 const execFileAsync = promisify(execFile);
-const log = createLogger("script-runner");
+
+let cachedLog: Logger | undefined;
+function getLog(): Logger {
+  if (!cachedLog) cachedLog = createLogger("script-runner");
+  return cachedLog;
+}
 
 const DEFAULT_TIMEOUT = 120_000; // 2 minutes
 
@@ -44,7 +49,7 @@ export async function installDeps(
       break;
   }
 
-  log.info({ runtime, deps, cwd }, "Installing script dependencies");
+  getLog().info({ runtime, deps, cwd }, "script.deps_install_started");
   await execFileAsync(cmd, args, { cwd });
 }
 
@@ -98,11 +103,13 @@ export async function runScript(
     });
     const output = result.stdout + result.stderr;
     return { output, exitCode: 0 };
-  } catch (error: any) {
-    const stdout = error.stdout ?? "";
-    const stderr = error.stderr ?? "";
+  } catch (error: unknown) {
+    const execErr = error !== null && typeof error === "object" ? error : {};
+    const stdout = "stdout" in execErr && typeof execErr.stdout === "string" ? execErr.stdout : "";
+    const stderr = "stderr" in execErr && typeof execErr.stderr === "string" ? execErr.stderr : "";
     const output = stdout + stderr;
-    const exitCode = typeof error.code === "number" ? error.code : 1;
+    const code = "code" in execErr ? execErr.code : undefined;
+    const exitCode = typeof code === "number" ? code : 1;
     return { output, exitCode };
   }
 }
