@@ -39,11 +39,15 @@ export {
   resumeWorkflow,
   abandonWorkflow,
   type RunResult,
+  type ProgressEvent,
   type WorkflowStatusResult,
   type ApprovalResult,
   type RejectionResult,
   type ResumeResult,
 } from "./operations/workflow-operations.ts";
+
+// ---- Cleanup ----
+export { runCleanup, type CleanupResult } from "./operations/cleanup.ts";
 
 // ---- Prompt Builder ----
 export { buildRoutingPrompt, formatWorkflowSection } from "./orchestrator/prompt-builder.ts";

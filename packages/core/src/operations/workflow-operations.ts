@@ -66,6 +66,15 @@ export interface RunResult {
   nodeOutputs: Record<string, { output: string }>;
 }
 
+/** Progress event emitted during workflow execution. */
+export type ProgressEvent =
+  | { type: "node:start"; nodeId: string; attempt: number }
+  | { type: "node:complete"; nodeId: string; durationMs: number }
+  | { type: "node:error"; nodeId: string; error: string }
+  | { type: "node:skipped"; nodeId: string; reason: string }
+  | { type: "run:progress"; completedNodes: number; totalNodes: number }
+  | { type: "run:done"; status: string; durationMs: number };
+
 export interface ResumeResult {
   runId: string;
   status: string;
@@ -214,7 +223,7 @@ export function abandonWorkflow(runId: string, store: StoreQueries): WorkflowRun
   return run;
 }
 
-/** Run a workflow by name — find, parse, execute. */
+/** Run a workflow by name — find, parse, execute. Optionally report progress. */
 export async function runWorkflow(
   workflowName: string,
   args: string | undefined,
@@ -222,6 +231,7 @@ export async function runWorkflow(
   store: StoreQueries,
   sessionId: string,
   cwd: string,
+  onProgress?: (event: ProgressEvent) => void,
 ): Promise<RunResult> {
   const discovered = await findWorkflow(workflowName, config);
   if (!discovered) {
@@ -232,6 +242,33 @@ export async function runWorkflow(
 
   const workflow = await parseWorkflow(discovered.path, config);
   const eventBus = new WorkflowEventBus();
+
+  // Wire event bus to progress callback
+  if (onProgress) {
+    eventBus.on("node:start", (e) =>
+      onProgress({ type: "node:start", nodeId: e.nodeId, attempt: e.attempt }),
+    );
+    eventBus.on("node:complete", (e) =>
+      onProgress({ type: "node:complete", nodeId: e.nodeId, durationMs: e.durationMs }),
+    );
+    eventBus.on("node:error", (e) =>
+      onProgress({ type: "node:error", nodeId: e.nodeId, error: e.error }),
+    );
+    eventBus.on("node:skipped", (e) =>
+      onProgress({ type: "node:skipped", nodeId: e.nodeId, reason: e.reason }),
+    );
+    eventBus.on("run:progress", (e) =>
+      onProgress({
+        type: "run:progress",
+        completedNodes: e.completedNodes,
+        totalNodes: e.totalNodes,
+      }),
+    );
+    eventBus.on("run:done", (e) =>
+      onProgress({ type: "run:done", status: e.status, durationMs: e.durationMs }),
+    );
+  }
+
   const executor = new WorkflowExecutor(store, eventBus);
 
   getLog().info({ workflowName: workflow.name, sessionId }, "operations.workflow_run_started");
