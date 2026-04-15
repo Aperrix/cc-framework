@@ -1,16 +1,42 @@
-/** Core provider interfaces for multi-provider AI agent support. */
+/**
+ * Core provider interfaces — contract layer.
+ *
+ * HARD RULE: This file must never import SDK packages or other @cc-framework/* packages.
+ * It is the dependency-free contract that all consumers import from.
+ */
 
-/** Capabilities advertised by a provider. */
+// ---- Capability Flags ----
+
+/**
+ * Provider capability flags. The executor uses these to warn when a workflow node
+ * specifies features the target provider doesn't support.
+ */
 export interface ProviderCapabilities {
-  /** Whether the provider supports MCP (Model Context Protocol) tool servers. */
-  supportsMcp: boolean;
-  /** Whether the provider supports tool/function calling. */
-  supportsTools: boolean;
-  /** Whether the provider supports extended thinking / chain-of-thought. */
-  supportsThinking: boolean;
-  /** Maximum context window size in tokens. */
-  maxContextTokens: number;
+  /** Resume a previous AI session (session threading). */
+  sessionResume: boolean;
+  /** MCP server configuration per node. */
+  mcp: boolean;
+  /** SDK hook callbacks per node. */
+  hooks: boolean;
+  /** Skill preloading per node. */
+  skills: boolean;
+  /** Tool allowlist/denylist restrictions. */
+  toolRestrictions: boolean;
+  /** Structured JSON output format. */
+  structuredOutput: boolean;
+  /** Cost control (maxBudgetUsd). */
+  costControl: boolean;
+  /** Effort level control. */
+  effortControl: boolean;
+  /** Extended thinking / chain-of-thought control. */
+  thinkingControl: boolean;
+  /** Fallback model when primary is unavailable. */
+  fallbackModel: boolean;
+  /** Sandbox execution mode. */
+  sandbox: boolean;
 }
+
+// ---- Query Options ----
 
 /** Options passed to a provider's query method. */
 export interface QueryOptions {
@@ -53,6 +79,29 @@ export interface QueryResult {
   /** Wall-clock duration of the query in milliseconds. */
   durationMs: number;
 }
+
+// ---- Registration ----
+
+/**
+ * Registration entry for a provider in the registry.
+ * Carries metadata, a factory, and model-compatibility logic.
+ */
+export interface ProviderRegistration {
+  /** Unique provider identifier (e.g. "claude", "codex"). */
+  id: string;
+  /** Human-readable display name. */
+  displayName: string;
+  /** Instantiate a provider. */
+  factory: () => IAgentProvider;
+  /** Static capability declaration — used for executor warnings. */
+  capabilities: ProviderCapabilities;
+  /** Check if a model string is compatible with this provider. */
+  isModelCompatible: (model: string) => boolean;
+  /** Whether this is a built-in provider. */
+  builtIn: boolean;
+}
+
+// ---- Provider Interface ----
 
 /** Interface that all agent providers must implement. */
 export interface IAgentProvider {

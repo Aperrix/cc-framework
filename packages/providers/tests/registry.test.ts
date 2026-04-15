@@ -8,13 +8,14 @@ import {
   inferProviderFromModel,
   isModelCompatible,
   clearRegistry,
-  type ProviderRegistration,
 } from "../src/registry.ts";
+import { CODEX_CAPABILITIES } from "../src/capabilities.ts";
 import type {
   IAgentProvider,
   QueryOptions,
   QueryResult,
   ProviderCapabilities,
+  ProviderRegistration,
 } from "../src/types.ts";
 
 // ---- Test Helpers ----
@@ -23,7 +24,9 @@ function makeProvider(id: string, patterns: RegExp[]): ProviderRegistration {
   const isCompat = (model: string) => patterns.some((p) => p.test(model.toLowerCase()));
   return {
     id,
+    displayName: `Test ${id}`,
     builtIn: false,
+    capabilities: CODEX_CAPABILITIES,
     isModelCompatible: isCompat,
     factory: () =>
       ({
@@ -33,12 +36,7 @@ function makeProvider(id: string, patterns: RegExp[]): ProviderRegistration {
           durationMs: 0,
         }),
         isModelCompatible: isCompat,
-        getCapabilities: (): ProviderCapabilities => ({
-          supportsMcp: false,
-          supportsTools: false,
-          supportsThinking: false,
-          maxContextTokens: 0,
-        }),
+        getCapabilities: (): ProviderCapabilities => CODEX_CAPABILITIES,
       }) satisfies IAgentProvider,
   };
 }
@@ -59,14 +57,11 @@ describe("Provider Registry", () => {
       expect(getRegistration("test-provider")).toBe(reg);
     });
 
-    it("overwrites existing registration with same ID", () => {
+    it("throws on duplicate registration", () => {
       const reg1 = makeProvider("dup", [/^v1-/]);
       const reg2 = makeProvider("dup", [/^v2-/]);
       registerProvider(reg1);
-      registerProvider(reg2);
-
-      expect(getRegistration("dup")).toBe(reg2);
-      expect(getRegisteredProviders()).toHaveLength(1);
+      expect(() => registerProvider(reg2)).toThrow(/already registered/);
     });
 
     it("unregisters a provider", () => {
@@ -82,7 +77,7 @@ describe("Provider Registry", () => {
 
   describe("getRegistration", () => {
     it("throws for unregistered provider", () => {
-      expect(() => getRegistration("missing")).toThrow(/not registered/);
+      expect(() => getRegistration("missing")).toThrow(/Unknown provider/);
     });
   });
 

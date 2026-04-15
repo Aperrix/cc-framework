@@ -1,61 +1,67 @@
-/** Provider registry — manages registration and lookup of agent providers. */
+/**
+ * Provider Registry — manages registration and lookup of agent providers.
+ *
+ * Bootstrap: callers must call registerBuiltInProviders() at process entrypoints
+ * (server startup, CLI init) before any provider lookups.
+ */
 
-import type { IAgentProvider } from "./types.ts";
+import type { IAgentProvider, ProviderCapabilities, ProviderRegistration } from "./types.ts";
+import { UnknownProviderError } from "./errors.ts";
 
-/** Registration entry for a provider. */
-export interface ProviderRegistration {
-  /** Unique provider identifier. */
-  id: string;
-  /** Whether this is a built-in (bundled) provider vs. a user-registered one. */
-  builtIn: boolean;
-  /** Check if a model string is compatible with this provider. */
-  isModelCompatible(model: string): boolean;
-  /** Factory function that creates a provider instance. */
-  factory(): IAgentProvider;
-}
+const registry = new Map<string, ProviderRegistration>();
 
-const providers = new Map<string, ProviderRegistration>();
-
-/** Register a provider. Overwrites any existing registration with the same ID. */
-export function registerProvider(reg: ProviderRegistration): void {
-  providers.set(reg.id, reg);
+/** Register a provider. Throws on duplicate registration. */
+export function registerProvider(entry: ProviderRegistration): void {
+  if (registry.has(entry.id)) {
+    throw new Error(`Provider '${entry.id}' is already registered`);
+  }
+  registry.set(entry.id, entry);
 }
 
 /** Remove a provider registration by ID. Returns true if it existed. */
 export function unregisterProvider(id: string): boolean {
-  return providers.delete(id);
+  return registry.delete(id);
+}
+
+/** Get an instantiated agent provider by ID. Throws UnknownProviderError if not registered. */
+export function getAgentProvider(id: string): IAgentProvider {
+  const entry = registry.get(id);
+  if (!entry) {
+    throw new UnknownProviderError(id, [...registry.keys()]);
+  }
+  return entry.factory();
+}
+
+/** Get the full registration entry for a provider. */
+export function getRegistration(id: string): ProviderRegistration {
+  const entry = registry.get(id);
+  if (!entry) {
+    throw new UnknownProviderError(id, [...registry.keys()]);
+  }
+  return entry;
+}
+
+/** Get provider capabilities without instantiating a provider. */
+export function getProviderCapabilities(id: string): ProviderCapabilities {
+  return getRegistration(id).capabilities;
 }
 
 /** Get all registered providers. */
 export function getRegisteredProviders(): ProviderRegistration[] {
-  return [...providers.values()];
-}
-
-/** Get a specific provider registration by ID. Throws if not found. */
-export function getRegistration(id: string): ProviderRegistration {
-  const reg = providers.get(id);
-  if (!reg) {
-    throw new Error(
-      `Provider "${id}" is not registered. Available: ${[...providers.keys()].join(", ")}`,
-    );
-  }
-  return reg;
+  return [...registry.values()];
 }
 
 /** Check if a provider is registered. */
 export function isRegisteredProvider(id: string): boolean {
-  return providers.has(id);
+  return registry.has(id);
 }
 
 /**
  * Infer the provider ID from a model string.
- *
- * Iterates all registered providers and returns the first whose
- * `isModelCompatible` returns true. Falls back to `defaultProvider`
- * if no match is found.
+ * Returns the first provider whose isModelCompatible returns true.
  */
-export function inferProviderFromModel(model: string, defaultProvider: string): string {
-  for (const reg of providers.values()) {
+export function inferProviderFromModel(model: string, defaultProvider = "claude"): string {
+  for (const reg of registry.values()) {
     if (reg.isModelCompatible(model)) {
       return reg.id;
     }
@@ -63,19 +69,15 @@ export function inferProviderFromModel(model: string, defaultProvider: string): 
   return defaultProvider;
 }
 
-/**
- * Check if a model is compatible with a specific provider.
- *
- * If no model is given, returns true (any model is valid when unspecified).
- */
+/** Check if a model is compatible with a specific provider. */
 export function isModelCompatible(provider: string, model?: string): boolean {
   if (!model) return true;
-  const reg = providers.get(provider);
+  const reg = registry.get(provider);
   if (!reg) return false;
   return reg.isModelCompatible(model);
 }
 
 /** Reset the registry (useful for testing). */
 export function clearRegistry(): void {
-  providers.clear();
+  registry.clear();
 }

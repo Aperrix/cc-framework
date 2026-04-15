@@ -42,10 +42,13 @@ describe("ClaudeProvider", () => {
 
   it("reports correct capabilities", () => {
     const caps = provider.getCapabilities();
-    expect(caps.supportsMcp).toBe(true);
-    expect(caps.supportsTools).toBe(true);
-    expect(caps.supportsThinking).toBe(true);
-    expect(caps.maxContextTokens).toBe(200_000);
+    expect(caps.sessionResume).toBe(true);
+    expect(caps.toolRestrictions).toBe(true);
+    expect(caps.costControl).toBe(true);
+    expect(caps.effortControl).toBe(true);
+    expect(caps.thinkingControl).toBe(true);
+    expect(caps.fallbackModel).toBe(true);
+    expect(caps.sandbox).toBe(true);
   });
 
   it("recognizes compatible models", () => {
@@ -73,18 +76,18 @@ describe("ClaudeProvider", () => {
     expect(mockedQuery).toHaveBeenCalledOnce();
   });
 
-  it("propagates SDK errors", async () => {
+  it("propagates non-transient SDK errors immediately", async () => {
     const { query: mockQuery } = await import("@anthropic-ai/claude-agent-sdk");
     const mockedQuery = vi.mocked(mockQuery);
 
     async function* failingStream() {
       yield { type: "system", subtype: "init", session_id: "sess-err" };
-      throw new Error("Network timeout");
+      throw new Error("Invalid API key");
     }
     mockedQuery.mockReturnValue(failingStream() as ReturnType<typeof mockedQuery>);
 
     await expect(provider.query({ prompt: "Fail", cwd: "/tmp" })).rejects.toThrow(
-      "Network timeout",
+      "Invalid API key",
     );
   });
 });

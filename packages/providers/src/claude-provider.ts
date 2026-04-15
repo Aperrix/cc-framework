@@ -1,7 +1,7 @@
 /** Claude provider — wraps the @anthropic-ai/claude-agent-sdk. */
 
 import type { IAgentProvider, ProviderCapabilities, QueryOptions, QueryResult } from "./types.ts";
-import { registerProvider } from "./registry.ts";
+import { CLAUDE_CAPABILITIES } from "./capabilities.ts";
 
 // ---- SDK Message Shapes ----
 
@@ -38,6 +38,12 @@ function resolveModel(model: string | undefined): string | undefined {
   return MODEL_ALIASES[model.toLowerCase()] ?? model;
 }
 
+// ---- Constants ----
+
+const MAX_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 1000;
+const FIRST_EVENT_TIMEOUT_MS = 30_000;
+
 // ---- Provider Implementation ----
 
 class ClaudeProvider implements IAgentProvider {
@@ -47,6 +53,32 @@ class ClaudeProvider implements IAgentProvider {
     const { query: sdkQuery } = await import("@anthropic-ai/claude-agent-sdk");
 
     const start = Date.now();
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const result = await this.executeQuery(sdkQuery, options);
+        return { ...result, durationMs: Date.now() - start };
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+
+        // Don't retry on non-transient errors
+        if (!isTransientError(lastError) || attempt >= MAX_RETRIES) {
+          throw lastError;
+        }
+
+        const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw lastError ?? new Error("Claude query failed after retries");
+  }
+
+  private async executeQuery(
+    sdkQuery: Function,
+    options: QueryOptions,
+  ): Promise<{ output: string; sessionId?: string }> {
     let output = "";
     let sessionId: string | undefined;
 
@@ -56,7 +88,6 @@ class ClaudeProvider implements IAgentProvider {
       permissionMode: options.permissionMode ?? "bypassPermissions",
     };
 
-    // Optional fields — only set if provided
     if (options.systemPrompt) sdkOptions.systemPrompt = options.systemPrompt;
     if (options.allowedTools) sdkOptions.allowedTools = options.allowedTools;
     if (options.deniedTools) sdkOptions.deniedTools = options.deniedTools;
@@ -75,7 +106,19 @@ class ClaudeProvider implements IAgentProvider {
       options: sdkOptions,
     }) as AsyncIterable<SdkMessage>;
 
+    // Apply first-event timeout to detect hangs
+    const timeoutId = setTimeout(() => {
+      throw new Error(`Claude query timed out after ${FIRST_EVENT_TIMEOUT_MS}ms (no first event)`);
+    }, FIRST_EVENT_TIMEOUT_MS);
+
+    let firstEvent = true;
+
     for await (const message of events) {
+      if (firstEvent) {
+        clearTimeout(timeoutId);
+        firstEvent = false;
+      }
+
       if (
         message.type === "system" &&
         "subtype" in message &&
@@ -89,11 +132,9 @@ class ClaudeProvider implements IAgentProvider {
       }
     }
 
-    return {
-      output,
-      sessionId,
-      durationMs: Date.now() - start,
-    };
+    if (firstEvent) clearTimeout(timeoutId);
+
+    return { output, sessionId };
   }
 
   isModelCompatible(model: string): boolean {
@@ -101,24 +142,38 @@ class ClaudeProvider implements IAgentProvider {
   }
 
   getCapabilities(): ProviderCapabilities {
-    return {
-      supportsMcp: true,
-      supportsTools: true,
-      supportsThinking: true,
-      maxContextTokens: 200_000,
-    };
+    return CLAUDE_CAPABILITIES;
   }
+}
+
+// ---- Error Classification ----
+
+function isTransientError(err: Error): boolean {
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("rate limit") ||
+    msg.includes("timeout") ||
+    msg.includes("econnreset") ||
+    msg.includes("econnrefused") ||
+    msg.includes("socket hang up") ||
+    msg.includes("503") ||
+    msg.includes("429")
+  );
 }
 
 // ---- Registration ----
 
-/** Register the Claude provider as a built-in provider. */
+import { registerProvider } from "./registry.ts";
+
+/** Register the Claude provider with the registry. */
 export function registerClaudeProvider(): void {
   registerProvider({
     id: "claude",
-    builtIn: true,
-    isModelCompatible: isClaudeModel,
+    displayName: "Claude (Anthropic)",
     factory: () => new ClaudeProvider(),
+    capabilities: CLAUDE_CAPABILITIES,
+    isModelCompatible: isClaudeModel,
+    builtIn: true,
   });
 }
 
