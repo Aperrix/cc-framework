@@ -8,6 +8,7 @@ import {
   resumeWorkflow,
   getWorkflowStatus,
 } from "@cc-framework/core";
+import { toError } from "@cc-framework/utils";
 import { discoverWorkflows } from "@cc-framework/workflows";
 
 import type { McpContext } from "./context.ts";
@@ -174,7 +175,7 @@ export function createHandlers(ctx: McpContext) {
           `Initialized .cc-framework/ in ${target}\nCreated: config.yaml, workflows/, prompts/, scripts/`,
         );
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -194,7 +195,7 @@ export function createHandlers(ctx: McpContext) {
         }
         return text(lines.join("\n"));
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -214,7 +215,7 @@ export function createHandlers(ctx: McpContext) {
         }
         return text(lines.join("\n"));
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -229,7 +230,7 @@ export function createHandlers(ctx: McpContext) {
         if (runs.length === 0) return text("No runs in current session.");
         return text(runs.map(fmtRun).join("\n"));
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -238,7 +239,7 @@ export function createHandlers(ctx: McpContext) {
         const result = await resumeWorkflow(args.runId, ctx.config, ctx.store, ctx.cwd);
         return text(fmtRun({ id: result.runId, status: result.status, startedAt: Date.now() }));
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -248,7 +249,7 @@ export function createHandlers(ctx: McpContext) {
         const name = result.workflowName ? ` (${result.workflowName})` : "";
         return text(`Approved node "${args.nodeId}"${name}. Use ccf_resume to continue execution.`);
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -259,7 +260,7 @@ export function createHandlers(ctx: McpContext) {
           `Rejected node "${args.nodeId}".${result.reason !== "Rejected" ? ` Reason: ${result.reason}` : ""}`,
         );
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
 
@@ -271,7 +272,7 @@ export function createHandlers(ctx: McpContext) {
         if (events.length === 0) return text(`No events for run ${args.runId.slice(0, 8)}.`);
         return text([fmtRun(run), "", ...events.map(fmtEvent)].join("\n"));
       } catch (e) {
-        return error(e instanceof Error ? e.message : String(e));
+        return error(toError(e).message);
       }
     },
   };

@@ -48,12 +48,21 @@ class ClaudeProvider implements IAgentProvider {
       cwd: options.cwd,
     };
 
-    for await (const message of sdkQuery({
+    // SDK boundary: sdkQuery returns an async iterable but the SDK types don't
+    // expose AsyncIterable directly. The runtime contract is stable.
+    const events = sdkQuery({
       prompt: options.prompt,
       options: sdkOptions,
-    }) as AsyncIterable<SdkMessage>) {
-      if (message.type === "system" && "subtype" in message && message.subtype === "init") {
-        sessionId = (message as SdkInitMessage).session_id;
+    }) as AsyncIterable<SdkMessage>;
+
+    for await (const message of events) {
+      if (
+        message.type === "system" &&
+        "subtype" in message &&
+        message.subtype === "init" &&
+        "session_id" in message
+      ) {
+        sessionId = String(message.session_id);
       }
       if ("result" in message && typeof message.result === "string") {
         output = message.result;

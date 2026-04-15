@@ -63,12 +63,19 @@ export async function runAi(
   }
 
   try {
-    for await (const message of query({ prompt, options }) as AsyncIterable<SdkMessage>) {
-      // Capture session ID from the init message (for session threading)
-      if (message.type === "system" && "subtype" in message && message.subtype === "init") {
-        sessionId = (message as SdkInitMessage).session_id;
+    // SDK boundary: query() returns an async iterable but the SDK types don't
+    // expose AsyncIterable directly. The runtime contract is stable.
+    const events = query({ prompt, options }) as AsyncIterable<SdkMessage>;
+
+    for await (const message of events) {
+      if (
+        message.type === "system" &&
+        "subtype" in message &&
+        message.subtype === "init" &&
+        "session_id" in message
+      ) {
+        sessionId = String(message.session_id);
       }
-      // Capture result text (may arrive multiple times — keep latest)
       if ("result" in message && typeof message.result === "string") {
         output = message.result;
       }
@@ -78,11 +85,11 @@ export async function runAi(
   } catch (err) {
     // Preserve partial output on failure — the model may have produced
     // useful work before the error (e.g., edited files, created branches).
-    const errorMessage = err instanceof Error ? err.message : String(err);
+    const { toError } = await import("@cc-framework/utils");
     return {
       output,
       sessionId,
-      error: errorMessage,
+      error: toError(err).message,
     };
   }
 }

@@ -9,21 +9,29 @@ import { toolDefs, createHandlers, type ToolDef } from "./tools.ts";
 
 type Handlers = ReturnType<typeof createHandlers>;
 
-/** Register a single tool, bridging our ToolDef + handler to the McpServer API. */
+/**
+ * Register a single tool, bridging our ToolDef + handler to the McpServer API.
+ *
+ * The MCP SDK's .tool() method expects Zod v4 schemas, but we use raw JSON Schema
+ * objects (because Zod v4 types aren't directly assignable to the SDK's ZodRawShapeCompat).
+ * The SDK accepts raw JSON Schema at runtime — this bridge function isolates the
+ * type incompatibility to a single location.
+ */
 function register(
   server: McpServer,
   name: string,
   def: ToolDef,
   handler: Handlers[keyof Handlers],
 ) {
+  // SDK boundary: McpServer.tool() accepts raw JSON Schema at runtime but types expect Zod.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const schema = def.inputSchema as unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cb = handler as unknown;
   if (def.inputSchema) {
-    // Use the deprecated but simpler `tool(name, description, jsonSchema, cb)` overload.
-    // The MCP SDK accepts raw JSON Schema objects at runtime even though the types expect Zod.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-    server.tool(name, def.description, def.inputSchema as any, handler as any);
+    (server.tool as Function)(name, def.description, schema, cb);
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-    server.tool(name, def.description, handler as any);
+    (server.tool as Function)(name, def.description, cb);
   }
 }
 

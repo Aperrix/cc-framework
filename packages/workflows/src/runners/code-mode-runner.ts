@@ -115,20 +115,24 @@ export async function runCodeMode(
   const systemPrompt = buildCodeModeSystemPrompt(runtime, builtins);
 
   try {
-    for await (const message of query({
+    // SDK boundary: query() returns an async iterable but SDK types don't expose it.
+    const events = query({
       prompt: `${systemPrompt}\n\nTASK:\n${prompt}`,
       options: {
         allowedTools: [], // No tools — force code generation
         model: node.model ?? workflow.model,
         cwd,
       },
-    }) as AsyncIterable<{ type: string; [key: string]: unknown }>) {
+    }) as AsyncIterable<{ type: string; [key: string]: unknown }>;
+
+    for await (const message of events) {
       if ("result" in message && typeof message.result === "string") {
         llmOutput = message.result;
       }
     }
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
+    const { toError } = await import("@cc-framework/utils");
+    const errorMessage = toError(err).message;
     return {
       output: "",
       generatedCode: "",
